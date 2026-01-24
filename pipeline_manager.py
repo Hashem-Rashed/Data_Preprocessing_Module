@@ -317,47 +317,85 @@ class PipelineManager:
     def outlier_statistics(self, data: pd.DataFrame) -> dict:
         """Calculate outlier statistics"""
         try:
+            # Check if we have numerical columns
+            numerical_cols = data.select_dtypes(include=[np.number]).columns.tolist()
+            if len(numerical_cols) == 0:
+                print("⚠️  No numerical columns found for outlier analysis")
+                empty_report = {
+                    '_summary': {
+                        'message': 'No numerical columns available',
+                        'total_outliers': 0,
+                        'columns_with_outliers': 0,
+                        'total_columns_analyzed': 0
+                    }
+                }
+                self.reports['outliers'] = empty_report
+                return empty_report
+            
             outlier_handler = OutlierHandler(
                 factor=self.config.OUTLIER_FACTOR
             )
             outlier_handler.fit(data)
             
             report = outlier_handler.get_outlier_report(data)
+            
+            # Ensure report is a dictionary
+            if not isinstance(report, dict):
+                print(f"⚠️  Outlier report is not a dictionary, type: {type(report)}")
+                report = {
+                    'error': f'Invalid report type: {type(report).__name__}',
+                    '_summary': {'error': True}
+                }
+            
             self.reports['outliers'] = report
             
             print("\n" + "="*60)
             print("OUTLIER STATISTICS")
             print("="*60)
             
-            total_outliers = 0
-            columns_with_outliers = []
+            # Safely extract summary
+            summary = report.get('_summary', {})
+            total_outliers = summary.get('total_outliers', 0)
+            columns_with_outliers = summary.get('columns_with_outliers', 0)
+            total_columns_analyzed = summary.get('total_columns_analyzed', len(numerical_cols))
             
+            print(f"\n📊 Numerical columns analyzed: {total_columns_analyzed}")
+            print(f"📊 Total outliers detected: {total_outliers:,}")
+            print(f"📊 Columns with outliers: {columns_with_outliers}")
+            
+            # Show details for columns with outliers
+            columns_shown = 0
             for col, stats in report.items():
-                outliers = stats['outliers']
-                total_outliers += outliers['count']
-                
-                if outliers['count'] > 0:
-                    columns_with_outliers.append((col, outliers['count'], outliers['percentage']))
-            
-            print(f"\n📊 Total outliers detected: {total_outliers:,}")
-            print(f"📊 Columns with outliers: {len(columns_with_outliers)} out of {len(report)} numerical columns")
-            
-            if columns_with_outliers:
-                # Sort by number of outliers
-                columns_with_outliers.sort(key=lambda x: x[1], reverse=True)
-                
-                print(f"\nTop columns with outliers:")
-                for col, count, pct in columns_with_outliers[:10]:  # Show top 10
-                    stats = report[col]
-                    print(f"\n{col}:")
-                    print(f"  • Outliers: {count:,} ({pct:.1f}%)")
-                    print(f"  • Original Range: [{stats['original_range']['min']:.2f}, {stats['original_range']['max']:.2f}]")
-                    print(f"  • IQR Bounds: [{stats['bounds']['lower']:.2f}, {stats['bounds']['upper']:.2f}]")
+                if col != '_summary' and col != 'error':
+                    if isinstance(stats, dict):
+                        outliers = stats.get('outliers', {})
+                        if isinstance(outliers, dict):
+                            count = outliers.get('count', 0)
+                            if count > 0 and columns_shown < 5:  # Show first 5
+                                percentage = outliers.get('percentage', 0)
+                                print(f"\n{col}:")
+                                print(f"  • Outliers: {count:,} ({percentage:.1f}%)")
+                                columns_shown += 1
             
             return report
+            
         except Exception as e:
             print(f"❌ Error calculating outlier statistics: {e}")
-            return {'error': str(e)}
+            print(f"Error type: {type(e).__name__}")
+            
+            # Create a proper error report
+            error_report = {
+                'error': str(e),
+                'error_type': type(e).__name__,
+                '_summary': {
+                    'error': True,
+                    'message': str(e),
+                    'total_outliers': 0,
+                    'columns_with_outliers': 0
+                }
+            }
+            self.reports['outliers'] = error_report
+            return error_report
     
     def clip_outliers(self, data: pd.DataFrame) -> pd.DataFrame:
         """Clip outliers using IQR method"""
@@ -457,7 +495,28 @@ class PipelineManager:
                 }
             }
             
-            self.reports['final'] = final_report
+            # Generate other reports (handle errors gracefully)
+            try:
+                schema_report = self.check_data_schema(data)
+            except Exception as e:
+                schema_report = {'error': f'Failed to generate schema report: {e}'}
+            
+            try:
+                null_report = self.missing_values_report(data)
+            except Exception as e:
+                null_report = {'error': f'Failed to generate null report: {e}'}
+            
+            try:
+                outlier_report = self.outlier_statistics(data)
+            except Exception as e:
+                outlier_report = {'error': f'Failed to generate outlier report: {e}'}
+            
+            self.reports = {
+                'final': final_report,
+                'schema': schema_report,
+                'missing_values': null_report,
+                'outliers': outlier_report
+            }
             
             print(f"\n✅ Pipeline completed successfully!")
             print(f"   • Original: {data.shape[0]:,} rows × {data.shape[1]:,} columns")

@@ -705,6 +705,7 @@ def show_quality_report(reports_data):
     
     cards = []
     
+    # Final report card
     if 'final' in reports:
         final = reports['final']
         cards.append(html.Div([
@@ -720,38 +721,129 @@ def show_quality_report(reports_data):
             'marginBottom': '20px'
         }))
     
+    # Missing values card
     if 'missing_values' in reports:
         null_report = reports['missing_values']
-        total_cells = null_report['total_rows'] * null_report['total_columns']
-        null_percentage = (null_report['total_nulls'] / total_cells * 100) if total_cells > 0 else 0
         
-        cards.append(html.Div([
-            html.H5("Missing Values"),
-            html.P(f"Total Nulls: {null_report['total_nulls']:,}"),
-            html.P(f"Null Percentage: {null_percentage:.1f}%"),
-            html.P(f"Columns to Drop: {len(null_report['columns_to_drop'])}")
-        ], style={
-            'backgroundColor': 'white',
-            'padding': '20px',
-            'borderRadius': '5px',
-            'boxShadow': '0 2px 4px rgba(0,0,0,0.1)',
-            'marginBottom': '20px'
-        }))
+        # Handle different types of null_report
+        if isinstance(null_report, dict):
+            total_nulls = null_report.get('total_nulls', 0)
+            total_rows = null_report.get('total_rows', 1)
+            total_columns = null_report.get('total_columns', 1)
+            columns_to_drop = null_report.get('columns_to_drop', [])
+            
+            total_cells = total_rows * total_columns
+            null_percentage = (total_nulls / total_cells * 100) if total_cells > 0 else 0
+            
+            cards.append(html.Div([
+                html.H5("Missing Values"),
+                html.P(f"Total Nulls: {total_nulls:,}"),
+                html.P(f"Null Percentage: {null_percentage:.1f}%"),
+                html.P(f"Columns to Drop: {len(columns_to_drop)}")
+            ], style={
+                'backgroundColor': 'white',
+                'padding': '20px',
+                'borderRadius': '5px',
+                'boxShadow': '0 2px 4px rgba(0,0,0,0.1)',
+                'marginBottom': '20px'
+            }))
+        else:
+            # Handle error case
+            cards.append(html.Div([
+                html.H5("Missing Values"),
+                html.P(f"Report type: {type(null_report).__name__}")
+            ], style={
+                'backgroundColor': '#f8f9fa',
+                'padding': '20px',
+                'borderRadius': '5px',
+                'boxShadow': '0 2px 4px rgba(0,0,0,0.1)',
+                'marginBottom': '20px'
+            }))
     
+    # Outliers card - FIXED
     if 'outliers' in reports:
         outlier_report = reports['outliers']
-        total_outliers = sum(stats['outliers']['count'] for stats in outlier_report.values())
-        cards.append(html.Div([
-            html.H5("Outliers"),
-            html.P(f"Total Outliers: {total_outliers:,}"),
-            html.P(f"Columns with outliers: {len(outlier_report)}")
-        ], style={
-            'backgroundColor': 'white',
-            'padding': '20px',
-            'borderRadius': '5px',
-            'boxShadow': '0 2px 4px rgba(0,0,0,0.1)',
-            'marginBottom': '20px'
-        }))
+        
+        # Handle string case (error message)
+        if isinstance(outlier_report, str):
+            if outlier_report == 'outliers':
+                cards.append(html.Div([
+                    html.H5("Outliers"),
+                    html.P("No numerical columns found for outlier analysis")
+                ], style={
+                    'backgroundColor': '#f8f9fa',
+                    'padding': '20px',
+                    'borderRadius': '5px',
+                    'boxShadow': '0 2px 4px rgba(0,0,0,0.1)',
+                    'marginBottom': '20px'
+                }))
+            else:
+                cards.append(html.Div([
+                    html.H5("Outliers"),
+                    html.P(f"Note: {outlier_report}")
+                ], style={
+                    'backgroundColor': '#f8f9fa',
+                    'padding': '20px',
+                    'borderRadius': '5px',
+                    'boxShadow': '0 2px 4px rgba(0,0,0,0.1)',
+                    'marginBottom': '20px'
+                }))
+        elif isinstance(outlier_report, dict):
+            # Check if it's an error report
+            if 'error' in outlier_report:
+                error_msg = outlier_report.get('error', 'Unknown error')
+                cards.append(html.Div([
+                    html.H5("Outliers"),
+                    html.P(f"Error: {error_msg}")
+                ], style={
+                    'backgroundColor': '#f8f9fa',
+                    'padding': '20px',
+                    'borderRadius': '5px',
+                    'boxShadow': '0 2px 4px rgba(0,0,0,0.1)',
+                    'marginBottom': '20px'
+                }))
+            else:
+                # Calculate total outliers safely
+                total_outliers = 0
+                columns_with_outliers = 0
+                
+                for key, value in outlier_report.items():
+                    # Skip summary/metadata entries
+                    if key.startswith('_') or key == 'error':
+                        continue
+                    
+                    # Check if value is a dictionary with outliers data
+                    if isinstance(value, dict):
+                        outliers_data = value.get('outliers')
+                        if isinstance(outliers_data, dict):
+                            count = outliers_data.get('count', 0)
+                            total_outliers += count
+                            if count > 0:
+                                columns_with_outliers += 1
+                
+                cards.append(html.Div([
+                    html.H5("Outliers"),
+                    html.P(f"Total Outliers: {total_outliers:,}"),
+                    html.P(f"Columns with outliers: {columns_with_outliers}")
+                ], style={
+                    'backgroundColor': 'white',
+                    'padding': '20px',
+                    'borderRadius': '5px',
+                    'boxShadow': '0 2px 4px rgba(0,0,0,0.1)',
+                    'marginBottom': '20px'
+                }))
+        else:
+            # Unknown format
+            cards.append(html.Div([
+                html.H5("Outliers"),
+                html.P(f"Report type: {type(outlier_report).__name__}")
+            ], style={
+                'backgroundColor': '#f8f9fa',
+                'padding': '20px',
+                'borderRadius': '5px',
+                'boxShadow': '0 2px 4px rgba(0,0,0,0.1)',
+                'marginBottom': '20px'
+            }))
     
     return html.Div(cards)
 
@@ -1094,6 +1186,63 @@ def step_by_step_processing(n_clicks, data_json, outlier_factor, drop_threshold,
             'color': '#721c24'
         })
         return None, None, error_msg
+    
+@app.callback(
+    [Output('dashboard-missing-values-chart', 'figure'),
+     Output('dashboard-missing-summary', 'children')],
+    [Input('drop-threshold', 'value'),
+     Input('stored-data', 'data')],
+    prevent_initial_call=True
+)
+def update_dashboard_with_threshold(threshold_percent, data_json):
+    """Update dashboard based on missing values threshold"""
+    if data_json is None:
+        return go.Figure(), "No data available"
+    
+    df = pd.read_json(io.StringIO(data_json), orient='split')
+    threshold = threshold_percent / 100  # Convert % to decimal
+    
+    # Calculate which columns would be dropped
+    null_percentage = (df.isnull().sum() / len(df)) * 100
+    columns_to_drop = null_percentage[null_percentage > threshold_percent].index.tolist()
+    columns_to_keep = null_percentage[null_percentage <= threshold_percent].index.tolist()
+    
+    # Create visualization
+    fig = go.Figure()
+    
+    # Add bars for all columns
+    fig.add_trace(go.Bar(
+        x=null_percentage.index,
+        y=null_percentage.values,
+        name='Missing %',
+        marker_color=['red' if pct > threshold_percent else 'blue' 
+                     for pct in null_percentage.values]
+    ))
+    
+    # Add threshold line
+    fig.add_hline(y=threshold_percent, 
+                  line_dash="dash", 
+                  line_color="red",
+                  annotation_text=f"Threshold: {threshold_percent}%",
+                  annotation_position="top right")
+    
+    fig.update_layout(
+        title=f"Missing Values by Column (Threshold: {threshold_percent}%)",
+        xaxis_title="Columns",
+        yaxis_title="Missing Values (%)",
+        height=400
+    )
+    
+    # Create summary text
+    summary = html.Div([
+        html.H5(f"Threshold Analysis: {threshold_percent}%"),
+        html.P(f"Columns that would be dropped: {len(columns_to_drop)}"),
+        html.P(f"Columns that would be kept: {len(columns_to_keep)}"),
+        html.P(f"Total null values: {df.isnull().sum().sum():,}"),
+        html.P(f"Overall null percentage: {(df.isnull().sum().sum() / (len(df) * len(df.columns)) * 100):.1f}%")
+    ])
+    
+    return fig, summary
 
 debug_mode = os.environ.get('DEBUG', 'False').lower() == 'true'
 if __name__ == '__main__':

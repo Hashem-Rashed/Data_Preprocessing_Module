@@ -424,50 +424,76 @@ class OutlierHandler(BaseEstimator, TransformerMixin):
         """Generate outlier statistics report"""
         report = {}
         
-        for col, bounds in self.bounds.items():
-            if col in X.columns:
-                col_data = X[col].dropna()
-                if len(col_data) > 0:
-                    outliers_mask = (col_data < bounds['lower']) | (col_data > bounds['upper'])
-                    outlier_count = outliers_mask.sum()
-                    outlier_percentage = (outlier_count / len(col_data)) * 100 if len(col_data) > 0 else 0
-                    
-                    # Calculate statistics for outliers
-                    outlier_values = col_data[outliers_mask]
-                    outlier_stats = {
-                        'count': int(outlier_count),
-                        'percentage': round(outlier_percentage, 2),
-                        'min': float(outlier_values.min()) if outlier_count > 0 else None,
-                        'max': float(outlier_values.max()) if outlier_count > 0 else None,
-                        'mean': float(outlier_values.mean()) if outlier_count > 0 else None,
-                        'std': float(outlier_values.std()) if outlier_count > 0 else None
+        try:
+            numerical_cols = X.select_dtypes(include=['int64', 'float64', 'int32', 'float32', 'uint8', 'int8']).columns
+            
+            # If no numerical columns, return empty report
+            if len(numerical_cols) == 0:
+                return {
+                    '_summary': {
+                        'message': 'No numerical columns available',
+                        'total_outliers': 0,
+                        'columns_with_outliers': 0,
+                        'total_columns_analyzed': 0
                     }
+                }
+            
+            for col in numerical_cols:
+                if col in self.bounds:
+                    bounds = self.bounds[col]
+                    col_data = X[col].dropna()
                     
-                    report[col] = {
-                        'bounds': {'lower': float(bounds['lower']), 'upper': float(bounds['upper'])},
-                        'original_range': {'min': float(bounds['min']), 'max': float(bounds['max'])},
-                        'quartiles': {'q1': float(bounds['q1']), 'q3': float(bounds['q3'])},
-                        'iqr': float(bounds['iqr']),
-                        'method': bounds.get('method', 'iqr'),
-                        'outliers': outlier_stats,
-                        'non_outlier_stats': {
-                            'count': len(col_data) - outlier_count,
-                            'min': float(col_data[~outliers_mask].min()) if len(col_data) > outlier_count else None,
-                            'max': float(col_data[~outliers_mask].max()) if len(col_data) > outlier_count else None,
-                            'mean': float(col_data[~outliers_mask].mean()) if len(col_data) > outlier_count else None
+                    if len(col_data) > 0:
+                        outliers_mask = (col_data < bounds['lower']) | (col_data > bounds['upper'])
+                        outlier_count = outliers_mask.sum()
+                        outlier_percentage = (outlier_count / len(col_data)) * 100 if len(col_data) > 0 else 0
+                        
+                        # Calculate statistics for outliers
+                        outlier_values = col_data[outliers_mask]
+                        outlier_stats = {
+                            'count': int(outlier_count),
+                            'percentage': round(float(outlier_percentage), 2),
+                            'min': float(outlier_values.min()) if outlier_count > 0 else None,
+                            'max': float(outlier_values.max()) if outlier_count > 0 else None,
+                            'mean': float(outlier_values.mean()) if outlier_count > 0 else None,
+                            'std': float(outlier_values.std()) if outlier_count > 0 else None
                         }
-                    }
-        
-        # Add summary statistics
-        total_outliers = sum(stats['outliers']['count'] for stats in report.values())
-        columns_with_outliers = sum(1 for stats in report.values() if stats['outliers']['count'] > 0)
-        
-        report['_summary'] = {
-            'total_outliers': total_outliers,
-            'columns_with_outliers': columns_with_outliers,
-            'total_columns_analyzed': len(report),
-            'outlier_factor': self.factor,
-            'clip_method': self.clip_method
-        }
+                        
+                        report[col] = {
+                            'bounds': {'lower': float(bounds['lower']), 'upper': float(bounds['upper'])},
+                            'original_range': {'min': float(bounds['min']), 'max': float(bounds['max'])},
+                            'quartiles': {'q1': float(bounds['q1']), 'q3': float(bounds['q3'])},
+                            'iqr': float(bounds['iqr']),
+                            'method': bounds.get('method', 'iqr'),
+                            'outliers': outlier_stats,
+                            'non_outlier_stats': {
+                                'count': len(col_data) - outlier_count,
+                                'min': float(col_data[~outliers_mask].min()) if len(col_data) > outlier_count else None,
+                                'max': float(col_data[~outliers_mask].max()) if len(col_data) > outlier_count else None,
+                                'mean': float(col_data[~outliers_mask].mean()) if len(col_data) > outlier_count else None
+                            }
+                        }
+            
+            # Add summary statistics
+            total_outliers = sum(stats.get('outliers', {}).get('count', 0) for stats in report.values())
+            columns_with_outliers = sum(1 for stats in report.values() if stats.get('outliers', {}).get('count', 0) > 0)
+            
+            report['_summary'] = {
+                'total_outliers': total_outliers,
+                'columns_with_outliers': columns_with_outliers,
+                'total_columns_analyzed': len(report),
+                'outlier_factor': self.factor,
+                'clip_method': self.clip_method
+            }
+            
+        except Exception as e:
+            report = {
+                'error': f"Error generating outlier report: {str(e)}",
+                '_summary': {
+                    'error': True,
+                    'message': str(e)
+                }
+            }
         
         return report
+    

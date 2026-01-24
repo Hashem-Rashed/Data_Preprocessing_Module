@@ -1,5 +1,5 @@
 """
-Dashboard components for data visualization
+Dashboard components for data visualization with enhanced data type handling
 """
 import pandas as pd
 import numpy as np
@@ -7,232 +7,537 @@ import plotly.express as px
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 from dash import dcc, html
-from dash.dependencies import Input, Output
-import dash_bootstrap_components as dbc
+from dash.dependencies import Input, Output, State
+import json
 
 
 def create_dashboard(df):
     """Create interactive dashboard from cleaned data"""
     
     if df.empty:
-        return html.Div("No data available for dashboard")
+        return html.Div([
+            html.H4("No data available for dashboard"),
+            html.P("Please run the data pipeline first.")
+        ])
     
-    # Get column types
+    # Get column types with more granularity
     numerical_cols = df.select_dtypes(include=[np.number]).columns.tolist()
     categorical_cols = df.select_dtypes(include=['object', 'category']).columns.tolist()
+    datetime_cols = df.select_dtypes(include=['datetime', 'datetimetz']).columns.tolist()
+    boolean_cols = df.select_dtypes(include=['bool']).columns.tolist()
+    
+    # Create enhanced data type report
+    type_report = get_data_type_report(df)
     
     # Create tabs for different visualizations
     tabs = []
     
-    # Tab 1: Overview
-    overview_tab = dcc.Tab(label='Overview', children=[
+    # Tab 1: Enhanced Data Type Analysis
+    tabs.append(dcc.Tab(label='📊 Data Types', children=[
+        create_data_type_analysis_tab(df, type_report)
+    ]))
+    
+    # Tab 2: Overview (enhanced)
+    overview_tab = dcc.Tab(label='📈 Overview', children=[
         html.Div([
-            dbc.Row([
-                dbc.Col([
-                    create_summary_card(df)
-                ], width=12)
-            ]),
+            create_enhanced_summary_card(df, type_report),
             
-            dbc.Row([
-                dbc.Col([
-                    create_data_types_chart(df)
-                ], width=6),
-                dbc.Col([
+            html.Div([
+                html.H4("Interactive Threshold Analysis"),
+                html.P("Note: Adjust threshold in Data Processing tab, then run pipeline to see effects"),
+                html.Div(id='dashboard-threshold-info', style={
+                    'backgroundColor': '#f8f9fa',
+                    'padding': '15px',
+                    'borderRadius': '5px',
+                    'margin': '10px 0'
+                })
+            ], style={
+                'backgroundColor': 'white',
+                'padding': '20px',
+                'borderRadius': '5px',
+                'boxShadow': '0 2px 4px rgba(0,0,0,0.1)',
+                'marginTop': '20px'
+            }),
+            
+            html.Div([
+                html.Div([
+                    create_detailed_data_types_chart(df)
+                ], style={'width': '48%', 'display': 'inline-block'}),
+                
+                html.Div([
                     create_missing_values_chart(df)
-                ], width=6)
-            ], className="mt-3"),
+                ], style={'width': '48%', 'display': 'inline-block', 'float': 'right'})
+            ], style={'marginTop': '20px'}),
             
-            dbc.Row([
-                dbc.Col([
-                    create_correlation_matrix(df)
-                ], width=12)
-            ], className="mt-3")
-        ])
+            html.Div([
+                create_memory_usage_chart(df)
+            ], style={'marginTop': '20px'}),
+            
+            html.Div([
+                create_correlation_matrix(df)
+            ], style={'marginTop': '20px'})
+        ], style={'padding': '20px'})
     ])
     tabs.append(overview_tab)
     
-    # Tab 2: Numerical Analysis
+    # Tab 3: Numerical Analysis (only if numerical columns exist)
     if numerical_cols:
-        numerical_tab = dcc.Tab(label='Numerical Analysis', children=[
+        numerical_tab = dcc.Tab(label='🔢 Numerical', children=[
             html.Div([
-                dbc.Row([
-                    dbc.Col([
-                        html.H4("Select Numerical Column"),
+                html.H4("Numerical Column Analysis", style={'marginBottom': '20px'}),
+                
+                html.Div([
+                    html.Div([
+                        html.Label("Select Numerical Column"),
                         dcc.Dropdown(
                             id='num-col-selector',
                             options=[{'label': col, 'value': col} for col in numerical_cols],
-                            value=numerical_cols[0] if numerical_cols else None
+                            value=numerical_cols[0] if numerical_cols else None,
+                            style={'width': '100%'}
                         )
-                    ], width=6),
+                    ], style={'width': '48%', 'display': 'inline-block'}),
                     
-                    dbc.Col([
-                        html.H4("Chart Type"),
+                    html.Div([
+                        html.Label("Chart Type"),
                         dcc.Dropdown(
                             id='num-chart-type',
                             options=[
                                 {'label': 'Histogram', 'value': 'histogram'},
                                 {'label': 'Box Plot', 'value': 'box'},
                                 {'label': 'Violin Plot', 'value': 'violin'},
-                                {'label': 'ECDF', 'value': 'ecdf'}
+                                {'label': 'ECDF', 'value': 'ecdf'},
+                                {'label': 'Density', 'value': 'density'}
                             ],
-                            value='histogram'
+                            value='histogram',
+                            style={'width': '100%'}
                         )
-                    ], width=6)
-                ]),
+                    ], style={'width': '48%', 'display': 'inline-block', 'float': 'right'})
+                ], style={'marginBottom': '20px'}),
                 
                 dcc.Graph(id='numerical-chart'),
                 
-                dbc.Row([
-                    dbc.Col([
-                        create_statistics_table(df, numerical_cols)
-                    ], width=12)
-                ], className="mt-3")
-            ])
+                html.Div([
+                    create_statistics_table(df, numerical_cols)
+                ], style={'marginTop': '30px'})
+            ], style={'padding': '20px'})
         ])
         tabs.append(numerical_tab)
     
-    # Tab 3: Categorical Analysis
+    # Tab 4: Categorical Analysis (only if categorical columns exist)
     if categorical_cols:
-        categorical_tab = dcc.Tab(label='Categorical Analysis', children=[
+        categorical_tab = dcc.Tab(label='📝 Categorical', children=[
             html.Div([
-                dbc.Row([
-                    dbc.Col([
-                        html.H4("Select Categorical Column"),
+                html.H4("Categorical Column Analysis", style={'marginBottom': '20px'}),
+                
+                html.Div([
+                    html.Div([
+                        html.Label("Select Categorical Column"),
                         dcc.Dropdown(
                             id='cat-col-selector',
                             options=[{'label': col, 'value': col} for col in categorical_cols],
-                            value=categorical_cols[0] if categorical_cols else None
+                            value=categorical_cols[0] if categorical_cols else None,
+                            style={'width': '100%'}
                         )
-                    ], width=6),
+                    ], style={'width': '48%', 'display': 'inline-block'}),
                     
-                    dbc.Col([
-                        html.H4("Select Numerical Column (for comparison)"),
+                    html.Div([
+                        html.Label("Select Numerical Column (for comparison)"),
                         dcc.Dropdown(
                             id='cat-num-col-selector',
                             options=[{'label': col, 'value': col} for col in numerical_cols],
-                            value=numerical_cols[0] if numerical_cols else None
+                            value=numerical_cols[0] if numerical_cols else None,
+                            style={'width': '100%'}
                         )
-                    ], width=6)
-                ]),
+                    ], style={'width': '48%', 'display': 'inline-block', 'float': 'right'})
+                ], style={'marginBottom': '20px'}),
                 
                 dcc.Graph(id='categorical-chart'),
                 
-                dbc.Row([
-                    dbc.Col([
-                        dcc.Graph(id='value-counts-chart')
-                    ], width=12)
-                ], className="mt-3")
-            ])
+                html.Div([
+                    dcc.Graph(id='value-counts-chart')
+                ], style={'marginTop': '30px'})
+            ], style={'padding': '20px'})
         ])
         tabs.append(categorical_tab)
     
-    # Tab 4: Relationships
-    if len(numerical_cols) >= 2:
-        relationships_tab = dcc.Tab(label='Relationships', children=[
+    # Tab 5: DateTime Analysis (only if datetime columns exist)
+    if datetime_cols:
+        datetime_tab = dcc.Tab(label='📅 DateTime', children=[
             html.Div([
-                dbc.Row([
-                    dbc.Col([
-                        html.H4("X-axis Column"),
+                html.H4("Date/Time Column Analysis", style={'marginBottom': '20px'}),
+                
+                html.Div([
+                    html.Div([
+                        html.Label("Select Date/Time Column"),
+                        dcc.Dropdown(
+                            id='date-col-selector',
+                            options=[{'label': col, 'value': col} for col in datetime_cols],
+                            value=datetime_cols[0] if datetime_cols else None,
+                            style={'width': '100%'}
+                        )
+                    ], style={'width': '48%', 'display': 'inline-block'}),
+                    
+                    html.Div([
+                        html.Label("Time Unit"),
+                        dcc.Dropdown(
+                            id='time-unit',
+                            options=[
+                                {'label': 'Year', 'value': 'year'},
+                                {'label': 'Month', 'value': 'month'},
+                                {'label': 'Day', 'value': 'day'},
+                                {'label': 'Hour', 'value': 'hour'},
+                                {'label': 'Minute', 'value': 'minute'},
+                                {'label': 'Day of Week', 'value': 'dayofweek'}
+                            ],
+                            value='month',
+                            style={'width': '100%'}
+                        )
+                    ], style={'width': '48%', 'display': 'inline-block', 'float': 'right'})
+                ], style={'marginBottom': '20px'}),
+                
+                dcc.Graph(id='datetime-chart'),
+                
+                html.Div([
+                    create_datetime_statistics(df, datetime_cols)
+                ], style={'marginTop': '30px'})
+            ], style={'padding': '20px'})
+        ])
+        tabs.append(datetime_tab)
+    
+    # Tab 6: Relationships
+    if len(numerical_cols) >= 2:
+        relationships_tab = dcc.Tab(label='🔗 Relationships', children=[
+            html.Div([
+                html.H4("Column Relationships", style={'marginBottom': '20px'}),
+                
+                html.Div([
+                    html.Div([
+                        html.Label("X-axis Column"),
                         dcc.Dropdown(
                             id='x-col-selector',
                             options=[{'label': col, 'value': col} for col in numerical_cols],
-                            value=numerical_cols[0]
+                            value=numerical_cols[0],
+                            style={'width': '100%'}
                         )
-                    ], width=4),
+                    ], style={'width': '32%', 'display': 'inline-block'}),
                     
-                    dbc.Col([
-                        html.H4("Y-axis Column"),
+                    html.Div([
+                        html.Label("Y-axis Column"),
                         dcc.Dropdown(
                             id='y-col-selector',
                             options=[{'label': col, 'value': col} for col in numerical_cols],
-                            value=numerical_cols[1] if len(numerical_cols) > 1 else numerical_cols[0]
+                            value=numerical_cols[1] if len(numerical_cols) > 1 else numerical_cols[0],
+                            style={'width': '100%'}
                         )
-                    ], width=4),
+                    ], style={'width': '32%', 'display': 'inline-block', 'marginLeft': '2%'}),
                     
-                    dbc.Col([
-                        html.H4("Color By (Optional)"),
+                    html.Div([
+                        html.Label("Color By (Optional)"),
                         dcc.Dropdown(
                             id='color-col-selector',
                             options=[{'label': 'None', 'value': 'none'}] + 
                                     [{'label': col, 'value': col} for col in categorical_cols],
-                            value='none'
+                            value='none',
+                            style={'width': '100%'}
                         )
-                    ], width=4)
-                ]),
+                    ], style={'width': '32%', 'display': 'inline-block', 'marginLeft': '2%'})
+                ], style={'marginBottom': '20px'}),
                 
                 dcc.Graph(id='scatter-plot'),
                 
-                dbc.Row([
-                    dbc.Col([
-                        html.H4("Correlation Analysis"),
-                        dcc.Graph(figure=create_correlation_heatmap(df))
-                    ], width=12)
-                ], className="mt-3")
-            ])
+                html.Div([
+                    html.H4("Correlation Analysis"),
+                    dcc.Graph(figure=create_correlation_heatmap(df))
+                ], style={'marginTop': '30px'})
+            ], style={'padding': '20px'})
         ])
         tabs.append(relationships_tab)
     
     return html.Div([
-        dcc.Tabs(tabs)
+        dcc.Tabs(tabs, colors={
+            "border": "white",
+            "primary": "#007bff",
+            "background": "#f8f9fa"
+        })
     ])
 
 
-def create_summary_card(df):
-    """Create summary statistics card"""
-    card = dbc.Card([
-        dbc.CardBody([
-            html.H4("Dataset Summary", className="card-title"),
-            dbc.Row([
-                dbc.Col([
-                    html.Div([
-                        html.H2(f"{df.shape[0]:,}", className="text-primary", 
-                               style={'color': '#007bff'}),
-                        html.P("Total Rows", className="text-muted")
-                    ], className="text-center")
-                ], width=3),
-                
-                dbc.Col([
-                    html.Div([
-                        html.H2(f"{df.shape[1]}", className="text-success",
-                               style={'color': '#28a745'}),
-                        html.P("Total Columns", className="text-muted")
-                    ], className="text-center")
-                ], width=3),
-                
-                dbc.Col([
-                    html.Div([
-                        html.H2(f"{df.select_dtypes(include=[np.number]).shape[1]}", 
-                               className="text-info", style={'color': '#17a2b8'}),
-                        html.P("Numerical Columns", className="text-muted")
-                    ], className="text-center")
-                ], width=3),
-                
-                dbc.Col([
-                    html.Div([
-                        html.H2(f"{df.select_dtypes(include=['object', 'category']).shape[1]}", 
-                               className="text-warning", style={'color': '#ffc107'}),
-                        html.P("Categorical Columns", className="text-muted")
-                    ], className="text-center")
-                ], width=3)
-            ])
+def get_data_type_report(df):
+    """Get detailed data type report"""
+    report = {
+        'total_columns': len(df.columns),
+        'total_rows': len(df),
+        'memory_usage_mb': df.memory_usage(deep=True).sum() / (1024**2),
+        'type_distribution': {},
+        'column_details': {},
+        'null_summary': {}
+    }
+    
+    # Count data types
+    dtype_counts = df.dtypes.value_counts()
+    for dtype, count in dtype_counts.items():
+        report['type_distribution'][str(dtype)] = int(count)
+    
+    # Column details
+    for col in df.columns:
+        dtype = str(df[col].dtype)
+        null_count = df[col].isnull().sum()
+        unique_count = df[col].nunique()
+        memory_bytes = df[col].memory_usage(deep=True)
+        
+        report['column_details'][col] = {
+            'dtype': dtype,
+            'null_count': int(null_count),
+            'null_percentage': float((null_count / len(df)) * 100),
+            'unique_values': int(unique_count),
+            'memory_bytes': float(memory_bytes),
+            'sample': str(df[col].iloc[0]) if len(df) > 0 and not pd.isna(df[col].iloc[0]) else "NaN"
+        }
+    
+    # Null summary
+    total_cells = len(df) * len(df.columns)
+    report['null_summary'] = {
+        'total_nulls': df.isnull().sum().sum(),
+        'columns_with_nulls': (df.isnull().sum() > 0).sum(),
+        'null_percentage': (df.isnull().sum().sum() / total_cells * 100) if total_cells > 0 else 0
+    }
+    
+    return report
+
+
+def create_data_type_analysis_tab(df, type_report):
+    """Create detailed data type analysis tab"""
+    
+    # Create table rows for column details
+    table_rows = []
+    for col, details in type_report['column_details'].items():
+        table_rows.append(html.Tr([
+            html.Td(col, style={'fontWeight': 'bold', 'fontSize': '12px'}),
+            html.Td(details['dtype'], style={'fontSize': '12px'}),
+            html.Td(f"{details['null_count']:,}", style={'fontSize': '12px'}),
+            html.Td(f"{details['null_percentage']:.1f}%", style={'fontSize': '12px'}),
+            html.Td(f"{details['unique_values']:,}", style={'fontSize': '12px'}),
+            html.Td(f"{details['memory_bytes'] / 1024:.1f} KB", style={'fontSize': '12px'})
+        ]))
+    
+    # Create data type distribution chart
+    dtype_fig = px.bar(
+        x=list(type_report['type_distribution'].keys()),
+        y=list(type_report['type_distribution'].values()),
+        title="Data Type Distribution",
+        labels={'x': 'Data Type', 'y': 'Count'},
+        color=list(type_report['type_distribution'].values()),
+        color_continuous_scale='Blues'
+    )
+    dtype_fig.update_traces(texttemplate='%{y}', textposition='outside')
+    dtype_fig.update_layout(height=300)
+    
+    return html.Div([
+        html.H3("📊 Data Type Analysis", style={'marginBottom': '20px'}),
+        
+        # Summary cards
+        html.Div([
+            html.Div([
+                html.H4(f"{type_report['total_columns']:,}", 
+                       style={'color': '#007bff', 'margin': '0', 'fontSize': '24px'}),
+                html.P("Total Columns", style={'color': '#6c757d', 'margin': '0', 'fontSize': '14px'})
+            ], style={
+                'backgroundColor': 'white',
+                'padding': '15px',
+                'borderRadius': '5px',
+                'boxShadow': '0 2px 4px rgba(0,0,0,0.1)',
+                'textAlign': 'center',
+                'flex': '1',
+                'marginRight': '10px'
+            }),
+            
+            html.Div([
+                html.H4(f"{len(type_report['type_distribution'])}", 
+                       style={'color': '#28a745', 'margin': '0', 'fontSize': '24px'}),
+                html.P("Unique Types", style={'color': '#6c757d', 'margin': '0', 'fontSize': '14px'})
+            ], style={
+                'backgroundColor': 'white',
+                'padding': '15px',
+                'borderRadius': '5px',
+                'boxShadow': '0 2px 4px rgba(0,0,0,0.1)',
+                'textAlign': 'center',
+                'flex': '1',
+                'marginRight': '10px'
+            }),
+            
+            html.Div([
+                html.H4(f"{type_report['null_summary']['columns_with_nulls']:,}", 
+                       style={'color': '#ffc107', 'margin': '0', 'fontSize': '24px'}),
+                html.P("With Nulls", style={'color': '#6c757d', 'margin': '0', 'fontSize': '14px'})
+            ], style={
+                'backgroundColor': 'white',
+                'padding': '15px',
+                'borderRadius': '5px',
+                'boxShadow': '0 2px 4px rgba(0,0,0,0.1)',
+                'textAlign': 'center',
+                'flex': '1',
+                'marginRight': '10px'
+            }),
+            
+            html.Div([
+                html.H4(f"{type_report['memory_usage_mb']:.1f} MB", 
+                       style={'color': '#17a2b8', 'margin': '0', 'fontSize': '24px'}),
+                html.P("Memory", style={'color': '#6c757d', 'margin': '0', 'fontSize': '14px'})
+            ], style={
+                'backgroundColor': 'white',
+                'padding': '15px',
+                'borderRadius': '5px',
+                'boxShadow': '0 2px 4px rgba(0,0,0,0.1)',
+                'textAlign': 'center',
+                'flex': '1'
+            })
+        ], style={'display': 'flex', 'marginBottom': '20px'}),
+        
+        html.Hr(),
+        
+        # Data type distribution chart
+        html.Div([
+            dcc.Graph(figure=dtype_fig)
+        ], style={'marginBottom': '20px'}),
+        
+        # Column details table
+        html.Div([
+            html.H4("Column Details", style={'marginBottom': '10px'}),
+            html.Div([
+                html.Table([
+                    html.Thead(
+                        html.Tr([
+                            html.Th("Column", style={'padding': '8px', 'fontSize': '12px'}),
+                            html.Th("Data Type", style={'padding': '8px', 'fontSize': '12px'}),
+                            html.Th("Null Count", style={'padding': '8px', 'fontSize': '12px'}),
+                            html.Th("Null %", style={'padding': '8px', 'fontSize': '12px'}),
+                            html.Th("Unique", style={'padding': '8px', 'fontSize': '12px'}),
+                            html.Th("Memory", style={'padding': '8px', 'fontSize': '12px'})
+                        ], style={'backgroundColor': '#f8f9fa'})
+                    ),
+                    html.Tbody(table_rows)
+                ], style={
+                    'width': '100%',
+                    'borderCollapse': 'collapse',
+                    'fontSize': '12px',
+                    'border': '1px solid #dee2e6'
+                })
+            ], style={
+                'maxHeight': '400px',
+                'overflowY': 'auto',
+                'borderRadius': '5px'
+            })
         ])
-    ])
-    return card
+    ], style={'padding': '20px'})
 
 
-def create_data_types_chart(df):
-    """Create chart showing data type distribution"""
+def create_enhanced_summary_card(df, type_report):
+    """Create enhanced summary statistics card"""
+    
+    numerical_cols = df.select_dtypes(include=[np.number]).columns.tolist()
+    categorical_cols = df.select_dtypes(include=['object', 'category']).columns.tolist()
+    datetime_cols = df.select_dtypes(include=['datetime', 'datetimetz']).columns.tolist()
+    boolean_cols = df.select_dtypes(include=['bool']).columns.tolist()
+    
+    return html.Div([
+        html.H4("📈 Dataset Summary", style={'marginBottom': '20px'}),
+        html.Div([
+            html.Div([
+                html.H2(f"{df.shape[0]:,}", style={'color': '#007bff', 'margin': '10px 0', 'fontSize': '32px'}),
+                html.P("Total Rows", style={'color': '#6c757d', 'fontSize': '14px'})
+            ], style={
+                'textAlign': 'center',
+                'flex': '1',
+                'marginRight': '15px'
+            }),
+            
+            html.Div([
+                html.H2(f"{df.shape[1]}", style={'color': '#28a745', 'margin': '10px 0', 'fontSize': '32px'}),
+                html.P("Total Columns", style={'color': '#6c757d', 'fontSize': '14px'})
+            ], style={
+                'textAlign': 'center',
+                'flex': '1',
+                'marginRight': '15px'
+            }),
+            
+            html.Div([
+                html.H2(f"{len(numerical_cols)}", style={'color': '#17a2b8', 'margin': '10px 0', 'fontSize': '32px'}),
+                html.P("Numerical", style={'color': '#6c757d', 'fontSize': '14px'})
+            ], style={
+                'textAlign': 'center',
+                'flex': '1',
+                'marginRight': '15px'
+            }),
+            
+            html.Div([
+                html.H2(f"{len(categorical_cols)}", style={'color': '#ffc107', 'margin': '10px 0', 'fontSize': '32px'}),
+                html.P("Categorical", style={'color': '#6c757d', 'fontSize': '14px'})
+            ], style={
+                'textAlign': 'center',
+                'flex': '1'
+            })
+        ], style={'display': 'flex', 'marginBottom': '15px'}),
+        
+        # Second row of stats
+        html.Div([
+            html.Div([
+                html.H3(f"{len(datetime_cols)}", style={'color': '#6f42c1', 'margin': '5px 0', 'fontSize': '24px'}),
+                html.P("DateTime", style={'color': '#6c757d', 'fontSize': '12px'})
+            ], style={
+                'textAlign': 'center',
+                'flex': '1',
+                'marginRight': '10px'
+            }),
+            
+            html.Div([
+                html.H3(f"{len(boolean_cols)}", style={'color': '#e83e8c', 'margin': '5px 0', 'fontSize': '24px'}),
+                html.P("Boolean", style={'color': '#6c757d', 'fontSize': '12px'})
+            ], style={
+                'textAlign': 'center',
+                'flex': '1',
+                'marginRight': '10px'
+            }),
+            
+            html.Div([
+                html.H3(f"{type_report['memory_usage_mb']:.1f}", style={'color': '#20c997', 'margin': '5px 0', 'fontSize': '24px'}),
+                html.P("MB Memory", style={'color': '#6c757d', 'fontSize': '12px'})
+            ], style={
+                'textAlign': 'center',
+                'flex': '1',
+                'marginRight': '10px'
+            }),
+            
+            html.Div([
+                html.H3(f"{type_report['null_summary']['null_percentage']:.1f}%", style={'color': '#fd7e14', 'margin': '5px 0', 'fontSize': '24px'}),
+                html.P("Null Values", style={'color': '#6c757d', 'fontSize': '12px'})
+            ], style={
+                'textAlign': 'center',
+                'flex': '1'
+            })
+        ], style={'display': 'flex'})
+    ], style={
+        'backgroundColor': 'white',
+        'padding': '25px',
+        'borderRadius': '10px',
+        'boxShadow': '0 4px 6px rgba(0,0,0,0.1)'
+    })
+
+
+def create_detailed_data_types_chart(df):
+    """Create chart showing detailed data type distribution"""
     dtype_counts = df.dtypes.value_counts()
     
-    fig = px.pie(
-        values=dtype_counts.values,
-        names=dtype_counts.index.astype(str),
+    fig = px.bar(
+        x=list(dtype_counts.index.astype(str)),
+        y=dtype_counts.values,
         title="Data Type Distribution",
-        hole=0.4
+        labels={'x': 'Data Type', 'y': 'Count'},
+        color=dtype_counts.values,
+        color_continuous_scale='Blues'
     )
     
-    fig.update_traces(textposition='inside', textinfo='percent+label')
     fig.update_layout(height=300)
+    fig.update_traces(texttemplate='%{y}', textposition='outside')
     
     return dcc.Graph(figure=fig)
 
@@ -247,8 +552,11 @@ def create_missing_values_chart(df):
             x=missing_counts.index,
             y=missing_counts.values,
             title="Missing Values by Column",
-            labels={'x': 'Column', 'y': 'Missing Count'}
+            labels={'x': 'Column', 'y': 'Missing Count'},
+            color=missing_counts.values,
+            color_continuous_scale='Reds'
         )
+        fig.update_traces(texttemplate='%{y}', textposition='outside')
     else:
         # Create a simple message chart if no missing values
         fig = go.Figure()
@@ -259,10 +567,97 @@ def create_missing_values_chart(df):
             showarrow=False,
             font=dict(size=20, color="green")
         )
-        fig.update_layout(title="Missing Values by Column")
+        fig.update_layout(
+            title="Missing Values by Column",
+            height=300
+        )
     
     fig.update_layout(height=300)
     return dcc.Graph(figure=fig)
+
+
+def create_memory_usage_chart(df):
+    """Create chart showing memory usage by column"""
+    memory_usage = df.memory_usage(deep=True).sort_values(ascending=False)
+    memory_usage = memory_usage[memory_usage > 0]  # Remove zero usage
+    
+    if len(memory_usage) > 0:
+        # Take top 15 columns or all if less than 15
+        top_n = min(15, len(memory_usage))
+        fig = px.bar(
+            x=memory_usage.index[:top_n],
+            y=memory_usage.values[:top_n] / 1024,  # Convert to KB
+            title=f"Memory Usage by Column (Top {top_n})",
+            labels={'x': 'Column', 'y': 'Memory (KB)'},
+            color=memory_usage.values[:top_n],
+            color_continuous_scale='Viridis'
+        )
+        fig.update_traces(texttemplate='%{y:.1f} KB', textposition='outside')
+    else:
+        fig = go.Figure()
+        fig.add_annotation(
+            text="No memory usage data available",
+            xref="paper", yref="paper",
+            x=0.5, y=0.5,
+            showarrow=False
+        )
+        fig.update_layout(title="Memory Usage by Column")
+    
+    fig.update_layout(height=300)
+    return dcc.Graph(figure=fig)
+
+
+def create_datetime_statistics(df, datetime_cols):
+    """Create statistics for datetime columns"""
+    if not datetime_cols:
+        return html.Div("No datetime columns available")
+    
+    stats_rows = []
+    for col in datetime_cols:
+        if col in df.columns:
+            col_data = df[col].dropna()
+            if len(col_data) > 0:
+                try:
+                    min_date = col_data.min().strftime('%Y-%m-%d %H:%M:%S')
+                    max_date = col_data.max().strftime('%Y-%m-%d %H:%M:%S')
+                except:
+                    min_date = str(col_data.min())
+                    max_date = str(col_data.max())
+                
+                stats_rows.append(html.Tr([
+                    html.Td(col, style={'fontSize': '12px'}),
+                    html.Td(min_date, style={'fontSize': '12px'}),
+                    html.Td(max_date, style={'fontSize': '12px'}),
+                    html.Td(f"{len(col_data):,}", style={'fontSize': '12px'}),
+                    html.Td(f"{df[col].isnull().sum():,}", style={'fontSize': '12px'}),
+                    html.Td(f"{(df[col].isnull().sum() / len(df) * 100):.1f}%", style={'fontSize': '12px'})
+                ]))
+    
+    return html.Div([
+        html.H5("DateTime Column Statistics"),
+        html.Table([
+            html.Thead(
+                html.Tr([
+                    html.Th("Column", style={'fontSize': '12px'}),
+                    html.Th("Min Date", style={'fontSize': '12px'}),
+                    html.Th("Max Date", style={'fontSize': '12px'}),
+                    html.Th("Non-Null", style={'fontSize': '12px'}),
+                    html.Th("Null Count", style={'fontSize': '12px'}),
+                    html.Th("Null %", style={'fontSize': '12px'})
+                ])
+            ),
+            html.Tbody(stats_rows)
+        ], style={
+            'width': '100%',
+            'borderCollapse': 'collapse',
+            'border': '1px solid #dee2e6'
+        })
+    ], style={
+        'backgroundColor': 'white',
+        'padding': '15px',
+        'borderRadius': '5px',
+        'boxShadow': '0 2px 4px rgba(0,0,0,0.1)'
+    })
 
 
 def create_correlation_matrix(df):
@@ -314,21 +709,40 @@ def create_statistics_table(df, numerical_cols):
     stats_df.columns = ['Column', 'Count', 'Mean', 'Std', 'Min', '25%', '50%', '75%', 'Max']
     
     # Create HTML table
-    table = html.Table([
-        html.Thead(
-            html.Tr([html.Th(col) for col in stats_df.columns])
-        ),
-        html.Tbody([
-            html.Tr([
-                html.Td(stats_df.iloc[i][col]) for col in stats_df.columns
-            ]) for i in range(len(stats_df))
-        ])
-    ], className="table table-striped table-bordered table-hover table-sm")
+    table_header = [html.Thead(html.Tr([html.Th(col) for col in stats_df.columns]))]
+    
+    table_body = []
+    for i in range(len(stats_df)):
+        row = []
+        for col in stats_df.columns:
+            row.append(html.Td(stats_df.iloc[i][col], style={'padding': '8px', 'fontSize': '12px'}))
+        table_body.append(html.Tr(row))
+    
+    table = html.Table(
+        table_header + [html.Tbody(table_body)],
+        style={
+            'width': '100%',
+            'borderCollapse': 'collapse',
+            'border': '1px solid #dee2e6',
+            'fontSize': '12px'
+        }
+    )
     
     return html.Div([
         html.H5("Descriptive Statistics"),
-        table
-    ])
+        html.Div([
+            table
+        ], style={
+            'maxHeight': '400px',
+            'overflowY': 'auto',
+            'borderRadius': '5px'
+        })
+    ], style={
+        'backgroundColor': 'white',
+        'padding': '15px',
+        'borderRadius': '5px',
+        'boxShadow': '0 2px 4px rgba(0,0,0,0.1)'
+    })
 
 
 def create_correlation_heatmap(df):
@@ -363,7 +777,7 @@ def create_correlation_heatmap(df):
     return fig
 
 
-# These functions are not used directly but are called by callbacks in app.py
+# These functions are called by callbacks in app.py
 def create_numerical_chart(df, col, chart_type='histogram'):
     """Create chart for numerical column"""
     if col not in df.columns:
@@ -378,6 +792,9 @@ def create_numerical_chart(df, col, chart_type='histogram'):
         fig = px.violin(df, y=col, title=f"Violin Plot of {col}")
     elif chart_type == 'ecdf':
         fig = px.ecdf(df, x=col, title=f"ECDF of {col}")
+    elif chart_type == 'density':
+        fig = px.density_contour(df, x=col, title=f"Density Plot of {col}")
+        fig.update_traces(contours_coloring="fill", contours_showlabels=True)
     else:
         fig = px.histogram(df, x=col, title=f"Distribution of {col}")
     
