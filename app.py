@@ -1244,6 +1244,233 @@ def update_dashboard_with_threshold(threshold_percent, data_json):
     
     return fig, summary
 
+
+
+@app.callback(
+    Output('datetime-chart', 'figure'),
+    [Input('date-col-selector', 'value'),
+     Input('time-unit', 'value')],
+    [State('stored-cleaned-data', 'data')]
+)
+def update_datetime_chart(date_col, time_unit, data_json):
+    """Update datetime chart based on selected column and time unit"""
+    if not data_json or not date_col:
+        return go.Figure()
+    
+    df = pd.read_json(io.StringIO(data_json), orient='split')
+    
+    if date_col not in df.columns:
+        return go.Figure()
+    
+    try:
+        # Extract time component based on selected unit
+        if time_unit == 'year':
+            time_data = df[date_col].dt.year
+            title = f"Distribution by Year - {date_col}"
+        elif time_unit == 'month':
+            time_data = df[date_col].dt.month
+            title = f"Distribution by Month - {date_col}"
+        elif time_unit == 'day':
+            time_data = df[date_col].dt.day
+            title = f"Distribution by Day - {date_col}"
+        elif time_unit == 'hour':
+            time_data = df[date_col].dt.hour
+            title = f"Distribution by Hour - {date_col}"
+        elif time_unit == 'minute':
+            time_data = df[date_col].dt.minute
+            title = f"Distribution by Minute - {date_col}"
+        elif time_unit == 'dayofweek':
+            time_data = df[date_col].dt.dayofweek
+            title = f"Distribution by Day of Week - {date_col}"
+        else:
+            time_data = df[date_col].dt.month
+            title = f"Distribution by Month - {date_col}"
+        
+        # Count occurrences
+        counts = time_data.value_counts().sort_index()
+        
+        # Create bar chart
+        fig = go.Figure()
+        fig.add_trace(go.Bar(
+            x=counts.index,
+            y=counts.values,
+            name='Count',
+            marker_color='#007bff'
+        ))
+        
+        fig.update_layout(
+            title=title,
+            xaxis_title=time_unit.capitalize(),
+            yaxis_title='Count',
+            plot_bgcolor='white',
+            paper_bgcolor='white',
+            showlegend=False
+        )
+        
+        return fig
+        
+    except Exception as e:
+        # If datetime operations fail, return empty figure
+        fig = go.Figure()
+        fig.add_annotation(
+            text=f"Error: {str(e)[:100]}",
+            xref="paper", yref="paper",
+            x=0.5, y=0.5,
+            showarrow=False
+        )
+        return fig
+
+@app.callback(
+    Output('pipeline-summary', 'children'),
+    [Input('stored-reports', 'data')]
+)
+def update_pipeline_summary(reports_data):
+    """Update pipeline summary in Export tab"""
+    if reports_data is None or 'final' not in reports_data:
+        return html.Div([
+            html.H5("Pipeline Summary"),
+            html.P("No pipeline results available yet."),
+            html.P("Run the pipeline first to see summary.")
+        ])
+    
+    final = reports_data['final']
+    
+    summary_cards = []
+    
+    # Original vs Cleaned comparison
+    summary_cards.append(html.Div([
+        html.H5("Data Transformation", style={'color': '#2c3e50'}),
+        html.Div([
+            html.Div([
+                html.H6("Original", style={'color': '#6c757d', 'marginBottom': '10px'}),
+                html.P(f"Rows: {final['original_shape'][0]:,}", style={'margin': '5px 0'}),
+                html.P(f"Columns: {final['original_shape'][1]:,}", style={'margin': '5px 0'})
+            ], style={'width': '45%', 'display': 'inline-block', 'textAlign': 'center'}),
+            
+            html.Div([
+                html.H6("→", style={'color': '#007bff', 'fontSize': '24px', 'margin': '20px 10px'})
+            ], style={'width': '10%', 'display': 'inline-block', 'textAlign': 'center'}),
+            
+            html.Div([
+                html.H6("Cleaned", style={'color': '#28a745', 'marginBottom': '10px'}),
+                html.P(f"Rows: {final['cleaned_shape'][0]:,}", style={'margin': '5px 0'}),
+                html.P(f"Columns: {final['cleaned_shape'][1]:,}", style={'margin': '5px 0'})
+            ], style={'width': '45%', 'display': 'inline-block', 'textAlign': 'center'})
+        ])
+    ], style={
+        'backgroundColor': 'white',
+        'padding': '20px',
+        'borderRadius': '5px',
+        'boxShadow': '0 2px 4px rgba(0,0,0,0.1)',
+        'marginBottom': '15px'
+    }))
+    
+    # Columns removed
+    if final['columns_removed']:
+        removed_count = len(final['columns_removed'])
+        removed_text = ', '.join(final['columns_removed'][:3])
+        if removed_count > 3:
+            removed_text += f'... and {removed_count - 3} more'
+        
+        summary_cards.append(html.Div([
+            html.H5("Columns Removed", style={'color': '#2c3e50'}),
+            html.P(f"{removed_count} columns were removed", style={'marginBottom': '10px'}),
+            html.P(removed_text, style={
+                'fontSize': '12px',
+                'color': '#6c757d',
+                'backgroundColor': '#f8f9fa',
+                'padding': '10px',
+                'borderRadius': '3px',
+                'wordBreak': 'break-word'
+            })
+        ], style={
+            'backgroundColor': 'white',
+            'padding': '20px',
+            'borderRadius': '5px',
+            'boxShadow': '0 2px 4px rgba(0,0,0,0.1)',
+            'marginBottom': '15px'
+        }))
+    
+    # Configuration used
+    if 'config' in final:
+        config = final['config']
+        summary_cards.append(html.Div([
+            html.H5("Configuration Used", style={'color': '#2c3e50'}),
+            html.P(f"Outlier Factor: {config.get('outlier_factor', 'N/A')}"),
+            html.P(f"Drop Threshold: {config.get('drop_threshold', 'N/A')*100:.0f}%"),
+            html.P(f"Impute Strategy: {config.get('impute_strategy', 'N/A')}")
+        ], style={
+            'backgroundColor': 'white',
+            'padding': '20px',
+            'borderRadius': '5px',
+            'boxShadow': '0 2px 4px rgba(0,0,0,0.1)',
+            'marginBottom': '15px'
+        }))
+    
+    # Pipeline steps
+    if 'pipeline_steps' in final:
+        steps = final['pipeline_steps']
+        steps_list = [html.Li(step) for step in steps]
+        summary_cards.append(html.Div([
+            html.H5("Pipeline Steps", style={'color': '#2c3e50'}),
+            html.Ul(steps_list, style={'paddingLeft': '20px'})
+        ], style={
+            'backgroundColor': 'white',
+            'padding': '20px',
+            'borderRadius': '5px',
+            'boxShadow': '0 2px 4px rgba(0,0,0,0.1)'
+        }))
+    
+    return html.Div(summary_cards)
+
+# Add callback for value counts chart
+@app.callback(
+    Output('value-counts-chart', 'figure', allow_duplicate=True),
+    [Input('cat-col-selector', 'value')],
+    [State('stored-cleaned-data', 'data')],
+    prevent_initial_call=True
+)
+def update_value_counts_chart(cat_col, data_json):
+    """Update value counts pie chart for categorical column"""
+    if not data_json or not cat_col:
+        return go.Figure()
+    
+    df = pd.read_json(io.StringIO(data_json), orient='split')
+    
+    if cat_col not in df.columns:
+        return go.Figure()
+    
+    try:
+        # Create value counts for categorical column
+        value_counts = df[cat_col].value_counts().reset_index()
+        value_counts.columns = ['category', 'count']
+        
+        # Take top 10 categories
+        top_categories = value_counts.head(10)
+        
+        # Create pie chart
+        fig = px.pie(top_categories, values='count', names='category',
+                    title=f"Top 10 Categories in {cat_col}",
+                    color_discrete_sequence=px.colors.qualitative.Set3)
+        
+        fig.update_layout(
+            plot_bgcolor='white',
+            paper_bgcolor='white',
+            showlegend=True
+        )
+        
+        return fig
+        
+    except Exception as e:
+        fig = go.Figure()
+        fig.add_annotation(
+            text=f"Error: {str(e)[:100]}",
+            xref="paper", yref="paper",
+            x=0.5, y=0.5,
+            showarrow=False
+        )
+        return fig
+
 debug_mode = os.environ.get('DEBUG', 'False').lower() == 'true'
 if __name__ == '__main__':
     app.run(debug=debug_mode, host='0.0.0.0', port=8050)

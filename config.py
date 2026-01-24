@@ -21,7 +21,7 @@ class Settings:
     # Processing parameters
     OUTLIER_FACTOR: float = 1.5
     IMPUTE_STRATEGY: str = "median"  # Options: "mean", "median", "most_frequent"
-    DROP_THRESHOLD: float = 0.5  # Drop columns with > 50% missing values
+    DROP_THRESHOLD: float = 0.7  # Drop columns with > 50% missing values
     
     # Display settings
     PREVIEW_ROWS: int = 10
