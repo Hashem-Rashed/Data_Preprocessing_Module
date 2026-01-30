@@ -13,6 +13,8 @@ import io
 import os
 from datetime import datetime
 import json
+import warnings
+warnings.filterwarnings('ignore')
 
 # Import dashboard components
 from dashboard import create_dashboard

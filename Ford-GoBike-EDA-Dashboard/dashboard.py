@@ -9,7 +9,7 @@ warnings.filterwarnings('ignore')
 
 print("Loading data...")
 try:
-    df = pd.read_csv('')
+    df = pd.read_csv('data/fordgobike.csv')
     print(f"Successfully loaded {len(df)} records")
 except FileNotFoundError:
     print("Data file not found. Creating sample data...")
