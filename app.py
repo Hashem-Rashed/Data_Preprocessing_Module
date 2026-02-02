@@ -18,6 +18,8 @@ warnings.filterwarnings('ignore')
 
 # Import dashboard components
 from dashboard import create_dashboard
+# Import enhanced dashboard
+from enhanced_dashboard import create_enhanced_dashboard
 
 # Import settings from config
 try:
@@ -38,8 +40,12 @@ except:
     REPORT_PATH = 'reports/quality_report.txt'
 
 # Initialize the app
-app = dash.Dash(__name__, suppress_callback_exceptions=True)
-app.title = "Modern Data Analysis Pipeline"
+app = dash.Dash(
+    __name__,
+    meta_tags=[{"name": "viewport", "content": "width=device-width, initial-scale=1"}],
+    title='Modern Data Analysis Pipeline',
+    assets_folder='assets'  # This automatically loads CSS files from assets folder
+)
 
 # Initialize pipeline manager
 manager = PipelineManager()
@@ -49,307 +55,290 @@ global_data = None
 cleaned_data = None
 reports = {}
 
-# Custom CSS
-app.css.append_css({
-    'external_url': 'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css'
-})
-
-# App layout
+# App layout - USING CSS CLASSES INSTEAD OF INLINE STYLES
 app.layout = html.Div([
-    # Header
+    # Font Awesome for icons
+    html.Link(
+        rel='stylesheet',
+        href='https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css'
+    ),
+    
+    # Main container with CSS class
     html.Div([
-        html.H1("📊 Modern Data Analysis Pipeline", style={'textAlign': 'center', 'marginBottom': '20px'}),
-        html.P("Automated data cleaning and visualization dashboard", 
-               style={'textAlign': 'center', 'color': '#6c757d'}),
-    ], style={'margin': '30px 0'}),
-    
-    # Tabs for different sections
-    dcc.Tabs([
-        # Tab 1: Data Upload & Processing
-        dcc.Tab(label='📁 Data Processing', children=[
-            html.Div([
-                html.Div([
-                    html.H3("Upload Data", style={'marginBottom': '20px'}),
-                    
-                    # File Upload
-                    dcc.Upload(
-                        id='upload-data',
-                        children=html.Div([
-                            'Drag and Drop or ',
-                            html.A('Select Files')
-                        ]),
-                        style={
-                            'width': '100%',
-                            'height': '100px',
-                            'lineHeight': '100px',
-                            'borderWidth': '2px',
-                            'borderStyle': 'dashed',
-                            'borderRadius': '5px',
-                            'textAlign': 'center',
-                            'margin': '10px'
-                        },
-                        multiple=False
-                    ),
-                    
-                    # Large file processing button (initially hidden)
-                    html.Button("Process Large File (Chunked)", 
-                               id="process-large-file-btn",
-                               style={
-                                   'width': '100%',
-                                   'marginTop': '10px',
-                                   'padding': '10px',
-                                   'backgroundColor': '#fd7e14',
-                                   'color': 'white',
-                                   'border': 'none',
-                                   'borderRadius': '5px',
-                                   'cursor': 'pointer',
-                                   'display': 'none'
-                               }),
-                    
-                    # Continue with large file button
-                    html.Button("Continue Anyway with Large File", 
-                               id="continue-large-file-btn",
-                               style={
-                                   'width': '100%',
-                                   'marginTop': '10px',
-                                   'padding': '10px',
-                                   'backgroundColor': '#6c757d',
-                                   'color': 'white',
-                                   'border': 'none',
-                                   'borderRadius': '5px',
-                                   'cursor': 'pointer',
-                                   'display': 'none'
-                               }),
-                    
-                    # Or use sample data
-                    html.Button("Use Sample Data", 
-                               id="sample-data-btn",
-                               style={
-                                   'width': '100%',
-                                   'marginTop': '20px',
-                                   'padding': '10px',
-                                   'backgroundColor': '#6c757d',
-                                   'color': 'white',
-                                   'border': 'none',
-                                   'borderRadius': '5px',
-                                   'cursor': 'pointer'
-                               }),
-                    
-                    # Current file info
-                    html.Div(id='file-info', style={'marginTop': '20px', 'padding': '15px', 
-                                                    'backgroundColor': '#f8f9fa', 'borderRadius': '5px'}),
-                    
-                    html.Hr(),
-                    
-                    # Processing Options
-                    html.H4("Processing Options", style={'marginTop': '30px'}),
-                    
-                    html.Div([
-                        html.Div([
-                            html.Label("Outlier Factor (IQR)"),
-                            dcc.Slider(
-                                id='outlier-factor',
-                                min=1,
-                                max=3,
-                                step=0.1,
-                                value=OUTLIER_FACTOR,
-                                marks={i: str(i) for i in [1, 1.5, 2, 2.5, 3]}
-                            )
-                        ], style={'width': '48%', 'display': 'inline-block'}),
-                        
-                        html.Div([
-                            html.Label("Missing Values Threshold (%)"),
-                            dcc.Slider(
-                                id='drop-threshold',
-                                min=0,
-                                max=100,
-                                step=5,
-                                value=DROP_THRESHOLD * 100,
-                                marks={i: f'{i}%' for i in [0, 25, 50, 75, 100]}
-                            )
-                        ], style={'width': '48%', 'display': 'inline-block', 'float': 'right'})
-                    ]),
-                    
-                    html.Div([
-                        html.Div([
-                            html.Label("Imputation Strategy"),
-                            dcc.Dropdown(
-                                id='impute-strategy',
-                                options=[
-                                    {'label': 'Median', 'value': 'median'},
-                                    {'label': 'Mean', 'value': 'mean'},
-                                    {'label': 'Most Frequent', 'value': 'most_frequent'}
-                                ],
-                                value=IMPUTE_STRATEGY
-                            )
-                        ], style={'width': '48%', 'display': 'inline-block'}),
-                        
-                        html.Div([
-                            html.Label("Preview Rows"),
-                            dcc.Slider(
-                                id='preview-rows',
-                                min=5,
-                                max=50,
-                                step=5,
-                                value=PREVIEW_ROWS,
-                                marks={i: str(i) for i in [5, 10, 20, 30, 50]}
-                            )
-                        ], style={'width': '48%', 'display': 'inline-block', 'float': 'right'})
-                    ], style={'marginTop': '20px'}),
-                    
-                    # Process Buttons
-                    html.Div([
-                        html.Button("Run Full Pipeline", 
-                                   id="run-pipeline-btn",
-                                   style={
-                                       'width': '48%',
-                                       'padding': '15px',
-                                       'backgroundColor': '#007bff',
-                                       'color': 'white',
-                                       'border': 'none',
-                                       'borderRadius': '5px',
-                                       'cursor': 'pointer',
-                                       'fontSize': '16px',
-                                       'marginTop': '30px'
-                                   }),
-                        
-                        html.Button("Step-by-Step Processing", 
-                                   id="step-by-step-btn",
-                                   style={
-                                       'width': '48%',
-                                       'padding': '15px',
-                                       'backgroundColor': '#17a2b8',
-                                       'color': 'white',
-                                       'border': 'none',
-                                       'borderRadius': '5px',
-                                       'cursor': 'pointer',
-                                       'fontSize': '16px',
-                                       'marginTop': '30px',
-                                       'float': 'right'
-                                   })
-                    ]),
-                    
-                    # Progress Indicator
-                    dcc.Loading(
-                        id="loading",
-                        type="circle",
-                        children=html.Div(id="loading-output")
-                    ),
-                    
-                ], style={'width': '40%', 'display': 'inline-block', 'verticalAlign': 'top', 
-                         'paddingRight': '30px', 'borderRight': '1px solid #ddd'}),
-                
-                # Results Column
-                html.Div([
-                    html.H3("Data Preview & Results", style={'marginBottom': '20px'}),
-                    
-                    # Tab for different previews
-                    dcc.Tabs([
-                        dcc.Tab(label='Raw Data', children=[
-                            html.Div(id='raw-data-preview', style={'marginTop': '20px'})
-                        ]),
-                        
-                        dcc.Tab(label='Cleaned Data', children=[
-                            html.Div(id='cleaned-data-preview', style={'marginTop': '20px'})
-                        ]),
-                        
-                        dcc.Tab(label='Data Quality Report', children=[
-                            html.Div(id='quality-report', style={'marginTop': '20px'})
-                        ])
-                    ]),
-                    
-                    # Statistics Cards
-                    html.Div(id='statistics-cards', style={'marginTop': '30px'}),
-                    
-                ], style={'width': '58%', 'display': 'inline-block', 'verticalAlign': 'top', 
-                         'paddingLeft': '30px'})
-            ], style={'display': 'flex'})
-        ]),
+        # Header - USING CSS CLASSES
+        html.Div([
+            html.H1("📊 Modern Data Analysis Pipeline", className="dashboard-title"),
+            html.P("Automated data cleaning and visualization dashboard", 
+                   className="dashboard-subtitle"),
+        ], className="header"),
         
-        # Tab 2: Dashboard
-        dcc.Tab(label='📈 Dashboard', children=[
-            html.Div(id='dashboard-content', style={'marginTop': '20px'})
-        ]),
-        
-        # Tab 3: Export
-        dcc.Tab(label='💾 Export', children=[
-            html.Div([
+        # Tabs for different sections
+        dcc.Tabs([
+            # Tab 1: Data Upload & Processing
+            dcc.Tab(label='📁 Data Processing', children=[
                 html.Div([
-                    html.H3("Export Results", style={'marginBottom': '30px'}),
+                    # Left column for upload/controls
+                    html.Div([
+                        html.H3("Upload Data", className="section-title"),
+                        
+                        # File Upload with CSS class
+                        dcc.Upload(
+                            id='upload-data',
+                            children=html.Div([
+                                html.I(className="fas fa-cloud-upload-alt", style={'marginRight': '10px'}),
+                                'Drag and Drop or ',
+                                html.A('Select Files')
+                            ]),
+                            className="upload-area"
+                        ),
+                        
+                        # Large file processing button
+                        html.Button("Process Large File (Chunked)", 
+                                   id="process-large-file-btn",
+                                   className="dashboard-button secondary",
+                                   style={'display': 'none'}),
+                        
+                        # Continue with large file button
+                        html.Button("Continue Anyway with Large File", 
+                                   id="continue-large-file-btn",
+                                   className="dashboard-button warning",
+                                   style={'display': 'none'}),
+                        
+                        # Or use sample data
+                        html.Button("Use Sample Data", 
+                                   id="sample-data-btn",
+                                   className="dashboard-button"),
+                        
+                        # Current file info with CSS class
+                        html.Div(id='file-info', className="info-card"),
+                        
+                        html.Hr(className="divider"),
+                        
+                        # Processing Options with enhanced styling
+                        html.Div([
+                            html.H4("⚙️ Processing Options", className="section-title"),
+                            
+                            # Outlier Factor
+                            html.Div([
+                                html.Div([
+                                    html.Span("📊", className="option-icon"),
+                                    html.Label("Outlier Factor (IQR)", className="form-label"),
+                                    html.Div([
+                                        dcc.Slider(
+                                            id='outlier-factor',
+                                            min=1,
+                                            max=3,
+                                            step=0.1,
+                                            value=OUTLIER_FACTOR,
+                                            marks={i: str(i) for i in [1, 1.5, 2, 2.5, 3]},
+                                            className="processing-slider"
+                                        ),
+                                        html.Div([
+                                            html.Span("Current: ", className="value-label"),
+                                            html.Span(id='outlier-factor-value', children=str(OUTLIER_FACTOR), className="current-value")
+                                        ], className="slider-value-display")
+                                    ], className="rc-slider-container")
+                                ], className="form-group"),
+                                
+                                # Missing Values Threshold
+                                html.Div([
+                                    html.Div([
+                                        html.Span("📉", className="option-icon"),
+                                        html.Label("Missing Values Threshold (%)", className="form-label"),
+                                        html.Div([
+                                            dcc.Slider(
+                                                id='drop-threshold',
+                                                min=0,
+                                                max=100,
+                                                step=5,
+                                                value=DROP_THRESHOLD * 100,
+                                                marks={i: f'{i}%' for i in [0, 25, 50, 75, 100]},
+                                                className="processing-slider"
+                                            ),
+                                            html.Div([
+                                                html.Span("Current: ", className="value-label"),
+                                                html.Span(id='drop-threshold-value', children=f"{DROP_THRESHOLD * 100}%", className="current-value")
+                                            ], className="slider-value-display")
+                                        ], className="rc-slider-container")
+                                    ], className="form-group"),
+                                ], className="form-row"),
+                                
+                                # Imputation Strategy and Preview Rows
+                                html.Div([
+                                    html.Div([
+                                        html.Div([
+                                            html.Span("🔄", className="option-icon"),
+                                            html.Label("Imputation Strategy", className="form-label"),
+                                            dcc.Dropdown(
+                                                id='impute-strategy',
+                                                options=[
+                                                    {'label': '📊 Median', 'value': 'median'},
+                                                    {'label': '📈 Mean', 'value': 'mean'},
+                                                    {'label': '🎯 Most Frequent', 'value': 'most_frequent'}
+                                                ],
+                                                value=IMPUTE_STRATEGY,
+                                                className="filter-dropdown"
+                                            )
+                                        ], className="form-group"),
+                                        
+                                        html.Div([
+                                            html.Div([
+                                                html.Span("👁️", className="option-icon"),
+                                                html.Label("Preview Rows", className="form-label"),
+                                                html.Div([
+                                                    dcc.Slider(
+                                                        id='preview-rows',
+                                                        min=5,
+                                                        max=50,
+                                                        step=5,
+                                                        value=PREVIEW_ROWS,
+                                                        marks={i: str(i) for i in [5, 10, 20, 30, 50]},
+                                                        className="processing-slider"
+                                                    ),
+                                                    html.Div([
+                                                        html.Span("Current: ", className="value-label"),
+                                                        html.Span(id='preview-rows-value', children=str(PREVIEW_ROWS), className="current-value")
+                                                    ], className="slider-value-display")
+                                                ], className="rc-slider-container")
+                                            ], className="form-group"),
+                                        ]),
+                                    ], className="form-row"),
+                                ]),
+                                
+                                # Preset Options
+                                html.Div([
+                                    html.Label("Quick Presets", className="form-label"),
+                                    html.Div([
+                                        html.Button("Balanced", className="preset-button", id="preset-balanced"),
+                                        html.Button("Aggressive", className="preset-button", id="preset-aggressive"),
+                                        html.Button("Conservative", className="preset-button", id="preset-conservative"),
+                                        html.Button("Custom", className="preset-button active", id="preset-custom")
+                                    ], className="preset-options"),
+                                ], style={'marginTop': '20px'}),
+                                
+                                # Reset Button
+                                html.Button("↺ Reset to Defaults", className="reset-button", id="reset-options"),
+                                
+                            ], className="processing-options"),
+                        ], className="processing-options-wrapper"),
+                        
+                        html.Hr(className="divider"),
+                        
+                        # Process Buttons
+                        html.Div([
+                            html.Button("Run Full Pipeline", 
+                                       id="run-pipeline-btn",
+                                       className="dashboard-button primary"),
+                            
+                            html.Button("Step-by-Step Processing", 
+                                       id="step-by-step-btn",
+                                       className="dashboard-button secondary"),
+                        ], className="button-group"),
+                        
+                        # Progress Indicator
+                        dcc.Loading(
+                            id="loading",
+                            type="circle",
+                            children=html.Div(id="loading-output", className="loading-output")
+                        ),
+                        
+                    ], className="control-panel left-panel"),
+                    
+                    # Results Column
+                    html.Div([
+                        html.H3("Data Preview & Results", className="section-title"),
+                        
+                        # Tab for different previews
+                        dcc.Tabs([
+                            dcc.Tab(label='Raw Data', children=[
+                                html.Div(id='raw-data-preview', className="preview-container")
+                            ]),
+                            
+                            dcc.Tab(label='Cleaned Data', children=[
+                                html.Div(id='cleaned-data-preview', className="preview-container")
+                            ]),
+                            
+                            dcc.Tab(label='Data Quality Report', children=[
+                                html.Div(id='quality-report', className="preview-container")
+                            ])
+                        ], className="preview-tabs"),
+                        
+                        # Statistics Cards with CSS class
+                        html.Div(id='statistics-cards', className="metrics-container"),
+                        
+                    ], className="control-panel right-panel")
+                ], className="processing-container")
+            ]),
+            
+            # Tab 2: Dashboard
+            dcc.Tab(label='📈 Dashboard', children=[
+                html.Div(id='dashboard-content', className="dashboard-content")
+            ]),
+            
+            # Tab 3: Enhanced Dashboard
+            dcc.Tab(label='🎯 Enhanced Dashboard', children=[
+                html.Div(id='enhanced-dashboard-content', className="dashboard-content")
+            ]),
+            
+            # Tab 4: Export
+            dcc.Tab(label='💾 Export', children=[
+                html.Div([
+                    html.Div([
+                        html.H3("Export Results", className="section-title"),
+                        
+                        html.Div([
+                            html.H5("Download Cleaned Data"),
+                            html.P("Export the processed dataset to CSV format"),
+                            html.Button("Download CSV", 
+                                       id="download-csv-btn",
+                                       className="dashboard-button success")
+                        ], className="export-card"),
+                        
+                        html.Div([
+                            html.H5("Quality Report"),
+                            html.P("Download the detailed data quality report"),
+                            html.Button("Download Report", 
+                                       id="download-report-btn",
+                                       className="dashboard-button info")
+                        ], className="export-card"),
+                        
+                        # Download components
+                        dcc.Download(id="download-data"),
+                        dcc.Download(id="download-report"),
+                        
+                        html.Hr(className="divider"),
+                        
+                        # Configuration Summary
+                        html.H4("Current Configuration", className="section-title"),
+                        html.Div(id='config-summary', className="config-card")
+                        
+                    ], className="export-left-panel"),
                     
                     html.Div([
-                        html.H5("Download Cleaned Data"),
-                        html.P("Export the processed dataset to CSV format"),
-                        html.Button("Download CSV", 
-                                   id="download-csv-btn",
-                                   style={
-                                       'padding': '10px 20px',
-                                       'backgroundColor': '#28a745',
-                                       'color': 'white',
-                                       'border': 'none',
-                                       'borderRadius': '5px',
-                                       'cursor': 'pointer',
-                                       'marginTop': '10px'
-                                   })
-                    ], style={
-                        'backgroundColor': 'white',
-                        'padding': '20px',
-                        'borderRadius': '5px',
-                        'boxShadow': '0 2px 4px rgba(0,0,0,0.1)',
-                        'marginBottom': '20px'
-                    }),
-                    
-                    html.Div([
-                        html.H5("Quality Report"),
-                        html.P("Download the detailed data quality report"),
-                        html.Button("Download Report", 
-                                   id="download-report-btn",
-                                   style={
-                                       'padding': '10px 20px',
-                                       'backgroundColor': '#17a2b8',
-                                       'color': 'white',
-                                       'border': 'none',
-                                       'borderRadius': '5px',
-                                       'cursor': 'pointer',
-                                       'marginTop': '10px'
-                                   })
-                    ], style={
-                        'backgroundColor': 'white',
-                        'padding': '20px',
-                        'borderRadius': '5px',
-                        'boxShadow': '0 2px 4px rgba(0,0,0,0.1)',
-                        'marginBottom': '20px'
-                    }),
-                    
-                    # Download components
-                    dcc.Download(id="download-data"),
-                    dcc.Download(id="download-report"),
-                    
-                    html.Hr(),
-                    
-                    # Configuration Summary
-                    html.H4("Current Configuration", style={'marginTop': '30px'}),
-                    html.Div(id='config-summary')
-                    
-                ], style={'width': '48%', 'display': 'inline-block', 'verticalAlign': 'top'}),
-                
-                html.Div([
-                    html.H3("Pipeline Summary", style={'marginBottom': '30px'}),
-                    html.Div(id='pipeline-summary')
-                ], style={'width': '48%', 'display': 'inline-block', 'verticalAlign': 'top', 
-                         'float': 'right'})
+                        html.H3("Pipeline Summary", className="section-title"),
+                        html.Div(id='pipeline-summary', className="summary-card")
+                    ], className="export-right-panel")
+                ], className="export-container")
             ])
-        ])
-    ]),
-    
-    # Store for data
-    dcc.Store(id='stored-data'),
-    dcc.Store(id='stored-cleaned-data'),
-    dcc.Store(id='stored-reports'),
-    
-    # Interval for updates
-    dcc.Interval(id='interval-component', interval=1000, n_intervals=0)
-], style={'padding': '20px', 'maxWidth': '1400px', 'margin': '0 auto'})
+        ], className="main-tabs"),
+        
+        # Store for data
+        dcc.Store(id='stored-data'),
+        dcc.Store(id='stored-cleaned-data'),
+        dcc.Store(id='stored-reports'),
+        
+        # Store for enhanced dashboard
+        dcc.Store(id='stored-enhanced-summary'),
+        
+        # Interval for updates
+        dcc.Interval(id='interval-component', interval=1000, n_intervals=0),
+        
+        # Enhanced dashboard download components
+        dcc.Download(id="enhanced-csv-download"),
+        dcc.Download(id="enhanced-report-download"),
+        
+    ], id="main-container")
+])
 
 # Callbacks
 @app.callback(
@@ -365,36 +354,15 @@ app.layout = html.Div([
 def load_data(contents, sample_clicks, continue_clicks, filename):
     ctx = callback_context
     if not ctx.triggered:
-        return "No data loaded yet", None, {'display': 'none'}, {'display': 'none'}
+        return html.P("No data loaded yet", className="info-text"), None, {'display': 'none'}, {'display': 'none'}
     
     trigger_id = ctx.triggered[0]['prop_id'].split('.')[0]
     
     global global_data
     
     # Default button styles
-    large_file_btn_style = {
-        'width': '100%',
-        'marginTop': '10px',
-        'padding': '10px',
-        'backgroundColor': '#fd7e14',
-        'color': 'white',
-        'border': 'none',
-        'borderRadius': '5px',
-        'cursor': 'pointer',
-        'display': 'none'
-    }
-    
-    continue_btn_style = {
-        'width': '100%',
-        'marginTop': '10px',
-        'padding': '10px',
-        'backgroundColor': '#6c757d',
-        'color': 'white',
-        'border': 'none',
-        'borderRadius': '5px',
-        'cursor': 'pointer',
-        'display': 'none'
-    }
+    large_file_btn_style = {'display': 'none'}
+    continue_btn_style = {'display': 'none'}
     
     if trigger_id == 'upload-data' and contents:
         try:
@@ -407,10 +375,10 @@ def load_data(contents, sample_clicks, continue_clicks, filename):
             # For large files (>50MB), show warning and options
             if file_size > 50:
                 warning_msg = html.Div([
-                    html.H5(f"⚠️ Large File Detected: {filename}"),
-                    html.P(f"Size: {file_size:.1f} MB"),
-                    html.P("This file is large. For better performance:"),
-                ])
+                    html.H5(f"⚠️ Large File Detected: {filename}", className="warning-title"),
+                    html.P(f"Size: {file_size:.1f} MB", className="warning-text"),
+                    html.P("This file is large. For better performance:", className="warning-text"),
+                ], className="warning-card")
                 
                 # Show the large file processing buttons
                 large_file_btn_style['display'] = 'block'
@@ -427,39 +395,38 @@ def load_data(contents, sample_clicks, continue_clicks, filename):
                 df = pd.read_json(io.BytesIO(decoded))
             else:
                 return html.Div([
-                    html.H5(f"❌ Unsupported file format: {filename}"),
-                    html.P("Supported formats: CSV, Excel (.xlsx), JSON")
-                ], style={'color': '#721c24', 'backgroundColor': '#f8d7da', 
-                         'padding': '15px', 'borderRadius': '5px'}), None, large_file_btn_style, continue_btn_style
+                    html.H5(f"❌ Unsupported file format: {filename}", className="error-title"),
+                    html.P("Supported formats: CSV, Excel (.xlsx), JSON", className="error-text")
+                ], className="error-card"), None, large_file_btn_style, continue_btn_style
             
             global_data = df
-            info = [
-                html.H5(f"✅ File Loaded: {filename}"),
-                html.P(f"Shape: {df.shape[0]:,} rows × {df.shape[1]:,} columns"),
-                html.P(f"Size: {file_size:.1f} MB"),
-                html.P(f"Memory usage: {df.memory_usage(deep=True).sum() / (1024**2):.2f} MB"),
-                html.P(f"Columns preview: {', '.join(df.columns[:5])}..." if len(df.columns) > 5 else f"Columns: {', '.join(df.columns)}")
-            ]
+            info = html.Div([
+                html.H5(f"✅ File Loaded: {filename}", className="success-title"),
+                html.P(f"Shape: {df.shape[0]:,} rows × {df.shape[1]:,} columns", className="info-text"),
+                html.P(f"Size: {file_size:.1f} MB", className="info-text"),
+                html.P(f"Memory usage: {df.memory_usage(deep=True).sum() / (1024**2):.2f} MB", className="info-text"),
+                html.P(f"Columns preview: {', '.join(df.columns[:5])}..." if len(df.columns) > 5 else f"Columns: {', '.join(df.columns)}", 
+                       className="info-text")
+            ], className="success-card")
             return info, df.to_json(date_format='iso', orient='split'), large_file_btn_style, continue_btn_style
             
         except Exception as e:
             error_msg = html.Div([
-                html.H5(f"❌ Error loading file: {filename}"),
-                html.P(f"Error: {str(e)}"),
-                html.P("Make sure the file format is correct and not corrupted.")
-            ], style={'color': '#721c24', 'backgroundColor': '#f8d7da', 
-                     'padding': '15px', 'borderRadius': '5px', 'border': '1px solid #f5c6cb'})
+                html.H5(f"❌ Error loading file: {filename}", className="error-title"),
+                html.P(f"Error: {str(e)}", className="error-text"),
+                html.P("Make sure the file format is correct and not corrupted.", className="error-text")
+            ], className="error-card")
             return error_msg, None, large_file_btn_style, continue_btn_style
     
     elif trigger_id == 'sample-data-btn':
         df = manager._create_sample_data()
         global_data = df
-        info = [
-            html.H5("📊 Sample Data Generated"),
-            html.P(f"Shape: {df.shape[0]:,} rows × {df.shape[1]:,} columns"),
-            html.P(f"Memory: {df.memory_usage(deep=True).sum() / (1024**2):.2f} MB"),
-            html.P("Note: This is generated sample data for demonstration.")
-        ]
+        info = html.Div([
+            html.H5("📊 Sample Data Generated", className="success-title"),
+            html.P(f"Shape: {df.shape[0]:,} rows × {df.shape[1]:,} columns", className="info-text"),
+            html.P(f"Memory: {df.memory_usage(deep=True).sum() / (1024**2):.2f} MB", className="info-text"),
+            html.P("Note: This is generated sample data for demonstration.", className="info-text")
+        ], className="success-card")
         return info, df.to_json(date_format='iso', orient='split'), large_file_btn_style, continue_btn_style
     
     elif trigger_id == 'continue-large-file-btn' and contents:
@@ -478,29 +445,29 @@ def load_data(contents, sample_clicks, continue_clicks, filename):
                 df = pd.read_json(io.BytesIO(decoded))
             else:
                 return html.Div([
-                    html.H5(f"❌ Unsupported file format: {filename}")
-                ]), None, large_file_btn_style, continue_btn_style
+                    html.H5(f"❌ Unsupported file format: {filename}", className="error-title")
+                ], className="error-card"), None, large_file_btn_style, continue_btn_style
             
             global_data = df
-            info = [
-                html.H5(f"✅ Large File Loaded: {filename}"),
-                html.P(f"Shape: {df.shape[0]:,} rows × {df.shape[1]:,} columns"),
-                html.P(f"Size: {file_size:.1f} MB"),
-                html.P("Processing may be slower due to file size."),
-                html.P(f"Columns preview: {', '.join(df.columns[:5])}..." if len(df.columns) > 5 else f"Columns: {', '.join(df.columns)}")
-            ]
+            info = html.Div([
+                html.H5(f"✅ Large File Loaded: {filename}", className="success-title"),
+                html.P(f"Shape: {df.shape[0]:,} rows × {df.shape[1]:,} columns", className="info-text"),
+                html.P(f"Size: {file_size:.1f} MB", className="info-text"),
+                html.P("Processing may be slower due to file size.", className="warning-text"),
+                html.P(f"Columns preview: {', '.join(df.columns[:5])}..." if len(df.columns) > 5 else f"Columns: {', '.join(df.columns)}", 
+                       className="info-text")
+            ], className="success-card")
             return info, df.to_json(date_format='iso', orient='split'), large_file_btn_style, continue_btn_style
             
         except Exception as e:
             error_msg = html.Div([
-                html.H5(f"❌ Error loading large file"),
-                html.P(f"Error: {str(e)}"),
-                html.P("Try using the 'Process Large File (Chunked)' option.")
-            ], style={'color': '#721c24', 'backgroundColor': '#f8d7da', 
-                     'padding': '15px', 'borderRadius': '5px'})
+                html.H5(f"❌ Error loading large file", className="error-title"),
+                html.P(f"Error: {str(e)}", className="error-text"),
+                html.P("Try using the 'Process Large File (Chunked)' option.", className="error-text")
+            ], className="error-card")
             return error_msg, None, large_file_btn_style, continue_btn_style
     
-    return "No data loaded yet", None, large_file_btn_style, continue_btn_style
+    return html.P("No data loaded yet", className="info-text"), None, large_file_btn_style, continue_btn_style
 
 @app.callback(
     Output('stored-data', 'data', allow_duplicate=True),
@@ -597,30 +564,17 @@ def run_pipeline(n_clicks, data_json, outlier_factor, drop_threshold, impute_str
         manager.reports = reports
         
         success_msg = html.Div([
-            html.Div("✅ Pipeline completed!", 
-                    style={'color': 'green', 'fontWeight': 'bold'}),
-            html.Div(f"Cleaned data: {cleaned_df.shape[0]:,} rows × {cleaned_df.shape[1]:,} columns")
-        ], style={
-            'padding': '15px',
-            'backgroundColor': '#d4edda',
-            'border': '1px solid #c3e6cb',
-            'borderRadius': '5px',
-            'color': '#155724'
-        })
+            html.Div("✅ Pipeline completed!", className="success-title"),
+            html.Div(f"Cleaned data: {cleaned_df.shape[0]:,} rows × {cleaned_df.shape[1]:,} columns", 
+                    className="info-text")
+        ], className="success-card")
         
         return cleaned_df.to_json(date_format='iso', orient='split'), reports, success_msg
         
     except Exception as e:
         error_msg = html.Div([
-            html.Div(f"❌ Error: {str(e)}", 
-                    style={'color': 'red', 'fontWeight': 'bold'})
-        ], style={
-            'padding': '15px',
-            'backgroundColor': '#f8d7da',
-            'border': '1px solid #f5c6cb',
-            'borderRadius': '5px',
-            'color': '#721c24'
-        })
+            html.Div(f"❌ Error: {str(e)}", className="error-title")
+        ], className="error-card")
         return None, None, error_msg
 
 @app.callback(
@@ -630,7 +584,7 @@ def run_pipeline(n_clicks, data_json, outlier_factor, drop_threshold, impute_str
 )
 def preview_raw_data(data_json, preview_rows):
     if data_json is None:
-        return "No data loaded yet."
+        return html.Div("No data loaded yet.", className="info-text")
     
     df = pd.read_json(io.StringIO(data_json), orient='split')
     
@@ -644,13 +598,22 @@ def preview_raw_data(data_json, preview_rows):
             'minWidth': '100px', 'maxWidth': '300px',
             'overflow': 'hidden',
             'textOverflow': 'ellipsis',
+            'backgroundColor': 'rgba(255, 255, 255, 0.05)',
+            'color': 'white',
+            'border': '1px solid rgba(255, 255, 255, 0.1)'
+        },
+        style_header={
+            'backgroundColor': 'rgba(255, 255, 255, 0.1)',
+            'fontWeight': 'bold',
+            'color': 'white',
+            'border': '1px solid rgba(255, 255, 255, 0.2)'
         }
     )
     
     return html.Div([
-        html.P(f"Showing first {preview_rows} rows of {len(df):,} total"),
+        html.P(f"Showing first {preview_rows} rows of {len(df):,} total", className="info-text"),
         table
-    ])
+    ], className="data-preview")
 
 @app.callback(
     Output('cleaned-data-preview', 'children'),
@@ -659,7 +622,7 @@ def preview_raw_data(data_json, preview_rows):
 )
 def preview_cleaned_data(data_json, preview_rows):
     if data_json is None:
-        return "No cleaned data available. Run the pipeline first."
+        return html.Div("No cleaned data available. Run the pipeline first.", className="info-text")
     
     df = pd.read_json(io.StringIO(data_json), orient='split')
     
@@ -673,13 +636,22 @@ def preview_cleaned_data(data_json, preview_rows):
             'minWidth': '100px', 'maxWidth': '300px',
             'overflow': 'hidden',
             'textOverflow': 'ellipsis',
+            'backgroundColor': 'rgba(255, 255, 255, 0.05)',
+            'color': 'white',
+            'border': '1px solid rgba(255, 255, 255, 0.1)'
+        },
+        style_header={
+            'backgroundColor': 'rgba(255, 255, 255, 0.1)',
+            'fontWeight': 'bold',
+            'color': 'white',
+            'border': '1px solid rgba(255, 255, 255, 0.2)'
         }
     )
     
     return html.Div([
-        html.P(f"Showing first {preview_rows} rows of {len(df):,} total"),
+        html.P(f"Showing first {preview_rows} rows of {len(df):,} total", className="info-text"),
         table
-    ])
+    ], className="data-preview")
 
 @app.callback(
     Output('dashboard-content', 'children'),
@@ -688,12 +660,37 @@ def preview_cleaned_data(data_json, preview_rows):
 def update_dashboard(data_json):
     if data_json is None:
         return html.Div([
-            html.H4("No data available for dashboard"),
-            html.P("Please run the data pipeline first.")
-        ])
+            html.H4("No data available for dashboard", className="section-title"),
+            html.P("Please run the data pipeline first.", className="info-text")
+        ], className="empty-state")
     
     df = pd.read_json(io.StringIO(data_json), orient='split')
     return create_dashboard(df)
+
+@app.callback(
+    Output('enhanced-dashboard-content', 'children'),
+    [Input('stored-cleaned-data', 'data')]
+)
+def update_enhanced_dashboard(data_json):
+    """Update enhanced dashboard with cleaned data"""
+    if data_json is None:
+        return html.Div([
+            html.Div([
+                html.H4("🎯 Enhanced Dashboard", className="section-title"),
+                html.P("This dashboard provides a client-focused view of your processed data.", 
+                      className="info-text"),
+                html.Hr(className="divider"),
+                html.P("📊 Please run the data processing pipeline first to see your data here.",
+                      className="warning-text"),
+                html.P("1. Go to 'Data Processing' tab", className="info-text"),
+                html.P("2. Upload your data or use sample data", className="info-text"),
+                html.P("3. Click 'Run Full Pipeline'", className="info-text"),
+                html.P("4. Return here to see your enhanced dashboard!", className="info-text")
+            ], className="empty-state")
+        ])
+    
+    df = pd.read_json(io.StringIO(data_json), orient='split')
+    return create_enhanced_dashboard(df)
 
 @app.callback(
     Output('quality-report', 'children'),
@@ -701,7 +698,7 @@ def update_dashboard(data_json):
 )
 def show_quality_report(reports_data):
     if reports_data is None:
-        return "No quality report available yet."
+        return html.Div("No quality report available yet.", className="info-text")
     
     reports = reports_data
     
@@ -711,23 +708,16 @@ def show_quality_report(reports_data):
     if 'final' in reports:
         final = reports['final']
         cards.append(html.Div([
-            html.H5("Pipeline Summary"),
-            html.P(f"Original: {final['original_shape'][0]:,} × {final['original_shape'][1]:,}"),
-            html.P(f"Cleaned: {final['cleaned_shape'][0]:,} × {final['cleaned_shape'][1]:,}"),
-            html.P(f"Columns Removed: {len(final['columns_removed'])}")
-        ], style={
-            'backgroundColor': 'white',
-            'padding': '20px',
-            'borderRadius': '5px',
-            'boxShadow': '0 2px 4px rgba(0,0,0,0.1)',
-            'marginBottom': '20px'
-        }))
+            html.H5("Pipeline Summary", className="card-title"),
+            html.P(f"Original: {final['original_shape'][0]:,} × {final['original_shape'][1]:,}", className="info-text"),
+            html.P(f"Cleaned: {final['cleaned_shape'][0]:,} × {final['cleaned_shape'][1]:,}", className="info-text"),
+            html.P(f"Columns Removed: {len(final['columns_removed'])}", className="info-text")
+        ], className="report-card"))
     
     # Missing values card
     if 'missing_values' in reports:
         null_report = reports['missing_values']
         
-        # Handle different types of null_report
         if isinstance(null_report, dict):
             total_nulls = null_report.get('total_nulls', 0)
             total_rows = null_report.get('total_rows', 1)
@@ -738,83 +728,47 @@ def show_quality_report(reports_data):
             null_percentage = (total_nulls / total_cells * 100) if total_cells > 0 else 0
             
             cards.append(html.Div([
-                html.H5("Missing Values"),
-                html.P(f"Total Nulls: {total_nulls:,}"),
-                html.P(f"Null Percentage: {null_percentage:.1f}%"),
-                html.P(f"Columns to Drop: {len(columns_to_drop)}")
-            ], style={
-                'backgroundColor': 'white',
-                'padding': '20px',
-                'borderRadius': '5px',
-                'boxShadow': '0 2px 4px rgba(0,0,0,0.1)',
-                'marginBottom': '20px'
-            }))
+                html.H5("Missing Values", className="card-title"),
+                html.P(f"Total Nulls: {total_nulls:,}", className="info-text"),
+                html.P(f"Null Percentage: {null_percentage:.1f}%", className="info-text"),
+                html.P(f"Columns to Drop: {len(columns_to_drop)}", className="info-text")
+            ], className="report-card"))
         else:
-            # Handle error case
             cards.append(html.Div([
-                html.H5("Missing Values"),
-                html.P(f"Report type: {type(null_report).__name__}")
-            ], style={
-                'backgroundColor': '#f8f9fa',
-                'padding': '20px',
-                'borderRadius': '5px',
-                'boxShadow': '0 2px 4px rgba(0,0,0,0.1)',
-                'marginBottom': '20px'
-            }))
+                html.H5("Missing Values", className="card-title"),
+                html.P(f"Report type: {type(null_report).__name__}", className="info-text")
+            ], className="report-card"))
     
-    # Outliers card - FIXED
+    # Outliers card
     if 'outliers' in reports:
         outlier_report = reports['outliers']
         
-        # Handle string case (error message)
         if isinstance(outlier_report, str):
             if outlier_report == 'outliers':
                 cards.append(html.Div([
-                    html.H5("Outliers"),
-                    html.P("No numerical columns found for outlier analysis")
-                ], style={
-                    'backgroundColor': '#f8f9fa',
-                    'padding': '20px',
-                    'borderRadius': '5px',
-                    'boxShadow': '0 2px 4px rgba(0,0,0,0.1)',
-                    'marginBottom': '20px'
-                }))
+                    html.H5("Outliers", className="card-title"),
+                    html.P("No numerical columns found for outlier analysis", className="info-text")
+                ], className="report-card"))
             else:
                 cards.append(html.Div([
-                    html.H5("Outliers"),
-                    html.P(f"Note: {outlier_report}")
-                ], style={
-                    'backgroundColor': '#f8f9fa',
-                    'padding': '20px',
-                    'borderRadius': '5px',
-                    'boxShadow': '0 2px 4px rgba(0,0,0,0.1)',
-                    'marginBottom': '20px'
-                }))
+                    html.H5("Outliers", className="card-title"),
+                    html.P(f"Note: {outlier_report}", className="info-text")
+                ], className="report-card"))
         elif isinstance(outlier_report, dict):
-            # Check if it's an error report
             if 'error' in outlier_report:
                 error_msg = outlier_report.get('error', 'Unknown error')
                 cards.append(html.Div([
-                    html.H5("Outliers"),
-                    html.P(f"Error: {error_msg}")
-                ], style={
-                    'backgroundColor': '#f8f9fa',
-                    'padding': '20px',
-                    'borderRadius': '5px',
-                    'boxShadow': '0 2px 4px rgba(0,0,0,0.1)',
-                    'marginBottom': '20px'
-                }))
+                    html.H5("Outliers", className="card-title"),
+                    html.P(f"Error: {error_msg}", className="error-text")
+                ], className="report-card"))
             else:
-                # Calculate total outliers safely
                 total_outliers = 0
                 columns_with_outliers = 0
                 
                 for key, value in outlier_report.items():
-                    # Skip summary/metadata entries
                     if key.startswith('_') or key == 'error':
                         continue
                     
-                    # Check if value is a dictionary with outliers data
                     if isinstance(value, dict):
                         outliers_data = value.get('outliers')
                         if isinstance(outliers_data, dict):
@@ -824,30 +778,17 @@ def show_quality_report(reports_data):
                                 columns_with_outliers += 1
                 
                 cards.append(html.Div([
-                    html.H5("Outliers"),
-                    html.P(f"Total Outliers: {total_outliers:,}"),
-                    html.P(f"Columns with outliers: {columns_with_outliers}")
-                ], style={
-                    'backgroundColor': 'white',
-                    'padding': '20px',
-                    'borderRadius': '5px',
-                    'boxShadow': '0 2px 4px rgba(0,0,0,0.1)',
-                    'marginBottom': '20px'
-                }))
+                    html.H5("Outliers", className="card-title"),
+                    html.P(f"Total Outliers: {total_outliers:,}", className="info-text"),
+                    html.P(f"Columns with outliers: {columns_with_outliers}", className="info-text")
+                ], className="report-card"))
         else:
-            # Unknown format
             cards.append(html.Div([
-                html.H5("Outliers"),
-                html.P(f"Report type: {type(outlier_report).__name__}")
-            ], style={
-                'backgroundColor': '#f8f9fa',
-                'padding': '20px',
-                'borderRadius': '5px',
-                'boxShadow': '0 2px 4px rgba(0,0,0,0.1)',
-                'marginBottom': '20px'
-            }))
+                html.H5("Outliers", className="card-title"),
+                html.P(f"Report type: {type(outlier_report).__name__}", className="info-text")
+            ], className="report-card"))
     
-    return html.Div(cards)
+    return html.Div(cards, className="reports-container")
 
 @app.callback(
     Output('statistics-cards', 'children'),
@@ -860,40 +801,22 @@ def update_statistics(raw_data_json, cleaned_data_json):
     if raw_data_json:
         df_raw = pd.read_json(io.StringIO(raw_data_json), orient='split')
         cards.append(html.Div([
-            html.H5("Raw Data", style={'color': '#17a2b8'}),
-            html.H3(f"{df_raw.shape[0]:,}", style={'margin': '10px 0'}),
-            html.P("Rows", style={'color': '#6c757d'}),
-            html.H3(f"{df_raw.shape[1]}", style={'margin': '10px 0'}),
-            html.P("Columns", style={'color': '#6c757d'}),
-        ], style={
-            'backgroundColor': 'white',
-            'padding': '20px',
-            'borderRadius': '5px',
-            'boxShadow': '0 2px 4px rgba(0,0,0,0.1)',
-            'textAlign': 'center',
-            'width': '23%',
-            'display': 'inline-block',
-            'marginRight': '2%'
-        }))
+            html.H5("Raw Data", className="stat-label"),
+            html.H3(f"{df_raw.shape[0]:,}", className="stat-number"),
+            html.P("Rows", className="stat-description"),
+            html.H3(f"{df_raw.shape[1]}", className="stat-number"),
+            html.P("Columns", className="stat-description"),
+        ], className="stat-card"))
     
     if cleaned_data_json:
         df_clean = pd.read_json(io.StringIO(cleaned_data_json), orient='split')
         cards.append(html.Div([
-            html.H5("Cleaned Data", style={'color': '#28a745'}),
-            html.H3(f"{df_clean.shape[0]:,}", style={'margin': '10px 0'}),
-            html.P("Rows", style={'color': '#6c757d'}),
-            html.H3(f"{df_clean.shape[1]}", style={'margin': '10px 0'}),
-            html.P("Columns", style={'color': '#6c757d'}),
-        ], style={
-            'backgroundColor': 'white',
-            'padding': '20px',
-            'borderRadius': '5px',
-            'boxShadow': '0 2px 4px rgba(0,0,0,0.1)',
-            'textAlign': 'center',
-            'width': '23%',
-            'display': 'inline-block',
-            'marginRight': '2%'
-        }))
+            html.H5("Cleaned Data", className="stat-label"),
+            html.H3(f"{df_clean.shape[0]:,}", className="stat-number"),
+            html.P("Rows", className="stat-description"),
+            html.H3(f"{df_clean.shape[1]}", className="stat-number"),
+            html.P("Columns", className="stat-description"),
+        ], className="stat-card"))
     
     if raw_data_json:
         df_raw = pd.read_json(io.StringIO(raw_data_json), orient='split')
@@ -902,43 +825,26 @@ def update_statistics(raw_data_json, cleaned_data_json):
         null_percentage = (null_count / total_cells * 100) if total_cells > 0 else 0
         
         cards.append(html.Div([
-            html.H5("Missing Values", style={'color': '#ffc107'}),
-            html.H3(f"{null_count:,}", style={'margin': '10px 0'}),
-            html.P("Null Values", style={'color': '#6c757d'}),
-            html.H3(f"{null_percentage:.1f}%", style={'margin': '10px 0'}),
-            html.P("Percentage", style={'color': '#6c757d'}),
-        ], style={
-            'backgroundColor': 'white',
-            'padding': '20px',
-            'borderRadius': '5px',
-            'boxShadow': '0 2px 4px rgba(0,0,0,0.1)',
-            'textAlign': 'center',
-            'width': '23%',
-            'display': 'inline-block',
-            'marginRight': '2%'
-        }))
+            html.H5("Missing Values", className="stat-label"),
+            html.H3(f"{null_count:,}", className="stat-number"),
+            html.P("Null Values", className="stat-description"),
+            html.H3(f"{null_percentage:.1f}%", className="stat-number"),
+            html.P("Percentage", className="stat-description"),
+        ], className="stat-card"))
     
     if raw_data_json:
         df_raw = pd.read_json(io.StringIO(raw_data_json), orient='split')
         num_cols = len(df_raw.select_dtypes(include=['int64', 'float64']).columns)
         cat_cols = len(df_raw.select_dtypes(include=['object', 'category']).columns)
         cards.append(html.Div([
-            html.H5("Data Types", style={'color': '#007bff'}),
-            html.H3(f"{num_cols}", style={'margin': '10px 0'}),
-            html.P("Numerical", style={'color': '#6c757d'}),
-            html.H3(f"{cat_cols}", style={'margin': '10px 0'}),
-            html.P("Categorical", style={'color': '#6c757d'}),
-        ], style={
-            'backgroundColor': 'white',
-            'padding': '20px',
-            'borderRadius': '5px',
-            'boxShadow': '0 2px 4px rgba(0,0,0,0.1)',
-            'textAlign': 'center',
-            'width': '23%',
-            'display': 'inline-block'
-        }))
+            html.H5("Data Types", className="stat-label"),
+            html.H3(f"{num_cols}", className="stat-number"),
+            html.P("Numerical", className="stat-description"),
+            html.H3(f"{cat_cols}", className="stat-number"),
+            html.P("Categorical", className="stat-description"),
+        ], className="stat-card"))
     
-    return html.Div(cards, style={'display': 'flex', 'justifyContent': 'space-between'})
+    return html.Div(cards, className="statistics-grid")
 
 @app.callback(
     Output('download-data', 'data'),
@@ -984,17 +890,12 @@ def download_report(n_clicks, reports_data):
 )
 def update_config_summary(outlier_factor, drop_threshold, impute_strategy):
     return html.Div([
-        html.P(f"Outlier Factor (IQR): {outlier_factor}"),
-        html.P(f"Drop Threshold: {drop_threshold}%"),
-        html.P(f"Imputation Strategy: {impute_strategy}"),
-        html.P(f"Preview Rows: {PREVIEW_ROWS}")
-    ], style={
-        'backgroundColor': '#f8f9fa',
-        'padding': '15px',
-        'borderRadius': '5px'
-    })
+        html.P(f"Outlier Factor (IQR): {outlier_factor}", className="info-text"),
+        html.P(f"Drop Threshold: {drop_threshold}%", className="info-text"),
+        html.P(f"Imputation Strategy: {impute_strategy}", className="info-text"),
+        html.P(f"Preview Rows: {PREVIEW_ROWS}", className="info-text")
+    ], className="config-list")
 
-# Dashboard callbacks
 @app.callback(
     Output('numerical-chart', 'figure'),
     [Input('num-col-selector', 'value'),
@@ -1163,30 +1064,16 @@ def step_by_step_processing(n_clicks, data_json, outlier_factor, drop_threshold,
         }
         
         success_msg = html.Div([
-            html.Div("✅ Step-by-step processing completed!", 
-                    style={'color': 'green', 'fontWeight': 'bold'}),
-            html.Div(f"Cleaned data: {df.shape[0]:,} rows × {df.shape[1]:,} columns")
-        ], style={
-            'padding': '15px',
-            'backgroundColor': '#d4edda',
-            'border': '1px solid #c3e6cb',
-            'borderRadius': '5px',
-            'color': '#155724'
-        })
+            html.Div("✅ Step-by-step processing completed!", className="success-title"),
+            html.Div(f"Cleaned data: {df.shape[0]:,} rows × {df.shape[1]:,} columns", className="info-text")
+        ], className="success-card")
         
         return df.to_json(date_format='iso', orient='split'), reports, success_msg
         
     except Exception as e:
         error_msg = html.Div([
-            html.Div(f"❌ Error: {str(e)}", 
-                    style={'color': 'red', 'fontWeight': 'bold'})
-        ], style={
-            'padding': '15px',
-            'backgroundColor': '#f8d7da',
-            'border': '1px solid #f5c6cb',
-            'borderRadius': '5px',
-            'color': '#721c24'
-        })
+            html.Div(f"❌ Error: {str(e)}", className="error-title")
+        ], className="error-card")
         return None, None, error_msg
     
 @app.callback(
@@ -1199,7 +1086,7 @@ def step_by_step_processing(n_clicks, data_json, outlier_factor, drop_threshold,
 def update_dashboard_with_threshold(threshold_percent, data_json):
     """Update dashboard based on missing values threshold"""
     if data_json is None:
-        return go.Figure(), "No data available"
+        return go.Figure(), html.Div("No data available", className="info-text")
     
     df = pd.read_json(io.StringIO(data_json), orient='split')
     threshold = threshold_percent / 100  # Convert % to decimal
@@ -1237,15 +1124,14 @@ def update_dashboard_with_threshold(threshold_percent, data_json):
     
     # Create summary text
     summary = html.Div([
-        html.H5(f"Threshold Analysis: {threshold_percent}%"),
-        html.P(f"Columns that would be dropped: {len(columns_to_drop)}"),
-        html.P(f"Columns that would be kept: {len(columns_to_keep)}"),
-        html.P(f"Total null values: {df.isnull().sum().sum():,}"),
-        html.P(f"Overall null percentage: {(df.isnull().sum().sum() / (len(df) * len(df.columns)) * 100):.1f}%")
+        html.H5(f"Threshold Analysis: {threshold_percent}%", className="card-title"),
+        html.P(f"Columns that would be dropped: {len(columns_to_drop)}", className="info-text"),
+        html.P(f"Columns that would be kept: {len(columns_to_keep)}", className="info-text"),
+        html.P(f"Total null values: {df.isnull().sum().sum():,}", className="info-text"),
+        html.P(f"Overall null percentage: {(df.isnull().sum().sum() / (len(df) * len(df.columns)) * 100):.1f}%", className="info-text")
     ])
     
     return fig, summary
-
 
 
 @app.callback(
@@ -1330,10 +1216,10 @@ def update_pipeline_summary(reports_data):
     """Update pipeline summary in Export tab"""
     if reports_data is None or 'final' not in reports_data:
         return html.Div([
-            html.H5("Pipeline Summary"),
-            html.P("No pipeline results available yet."),
-            html.P("Run the pipeline first to see summary.")
-        ])
+            html.H5("Pipeline Summary", className="card-title"),
+            html.P("No pipeline results available yet.", className="info-text"),
+            html.P("Run the pipeline first to see summary.", className="info-text")
+        ], className="empty-state")
     
     final = reports_data['final']
     
@@ -1341,31 +1227,25 @@ def update_pipeline_summary(reports_data):
     
     # Original vs Cleaned comparison
     summary_cards.append(html.Div([
-        html.H5("Data Transformation", style={'color': '#2c3e50'}),
+        html.H5("Data Transformation", className="card-title"),
         html.Div([
             html.Div([
-                html.H6("Original", style={'color': '#6c757d', 'marginBottom': '10px'}),
-                html.P(f"Rows: {final['original_shape'][0]:,}", style={'margin': '5px 0'}),
-                html.P(f"Columns: {final['original_shape'][1]:,}", style={'margin': '5px 0'})
-            ], style={'width': '45%', 'display': 'inline-block', 'textAlign': 'center'}),
+                html.H6("Original", className="comparison-label"),
+                html.P(f"Rows: {final['original_shape'][0]:,}", className="info-text"),
+                html.P(f"Columns: {final['original_shape'][1]:,}", className="info-text")
+            ], className="comparison-col"),
             
             html.Div([
-                html.H6("→", style={'color': '#007bff', 'fontSize': '24px', 'margin': '20px 10px'})
-            ], style={'width': '10%', 'display': 'inline-block', 'textAlign': 'center'}),
+                html.H6("→", className="comparison-arrow")
+            ], className="comparison-arrow-col"),
             
             html.Div([
-                html.H6("Cleaned", style={'color': '#28a745', 'marginBottom': '10px'}),
-                html.P(f"Rows: {final['cleaned_shape'][0]:,}", style={'margin': '5px 0'}),
-                html.P(f"Columns: {final['cleaned_shape'][1]:,}", style={'margin': '5px 0'})
-            ], style={'width': '45%', 'display': 'inline-block', 'textAlign': 'center'})
-        ])
-    ], style={
-        'backgroundColor': 'white',
-        'padding': '20px',
-        'borderRadius': '5px',
-        'boxShadow': '0 2px 4px rgba(0,0,0,0.1)',
-        'marginBottom': '15px'
-    }))
+                html.H6("Cleaned", className="comparison-label success"),
+                html.P(f"Rows: {final['cleaned_shape'][0]:,}", className="info-text"),
+                html.P(f"Columns: {final['cleaned_shape'][1]:,}", className="info-text")
+            ], className="comparison-col"),
+        ], className="comparison-row")
+    ], className="summary-card"))
     
     # Columns removed
     if final['columns_removed']:
@@ -1375,55 +1255,31 @@ def update_pipeline_summary(reports_data):
             removed_text += f'... and {removed_count - 3} more'
         
         summary_cards.append(html.Div([
-            html.H5("Columns Removed", style={'color': '#2c3e50'}),
-            html.P(f"{removed_count} columns were removed", style={'marginBottom': '10px'}),
-            html.P(removed_text, style={
-                'fontSize': '12px',
-                'color': '#6c757d',
-                'backgroundColor': '#f8f9fa',
-                'padding': '10px',
-                'borderRadius': '3px',
-                'wordBreak': 'break-word'
-            })
-        ], style={
-            'backgroundColor': 'white',
-            'padding': '20px',
-            'borderRadius': '5px',
-            'boxShadow': '0 2px 4px rgba(0,0,0,0.1)',
-            'marginBottom': '15px'
-        }))
+            html.H5("Columns Removed", className="card-title"),
+            html.P(f"{removed_count} columns were removed", className="info-text"),
+            html.P(removed_text, className="columns-list")
+        ], className="summary-card"))
     
     # Configuration used
     if 'config' in final:
         config = final['config']
         summary_cards.append(html.Div([
-            html.H5("Configuration Used", style={'color': '#2c3e50'}),
-            html.P(f"Outlier Factor: {config.get('outlier_factor', 'N/A')}"),
-            html.P(f"Drop Threshold: {config.get('drop_threshold', 'N/A')*100:.0f}%"),
-            html.P(f"Impute Strategy: {config.get('impute_strategy', 'N/A')}")
-        ], style={
-            'backgroundColor': 'white',
-            'padding': '20px',
-            'borderRadius': '5px',
-            'boxShadow': '0 2px 4px rgba(0,0,0,0.1)',
-            'marginBottom': '15px'
-        }))
+            html.H5("Configuration Used", className="card-title"),
+            html.P(f"Outlier Factor: {config.get('outlier_factor', 'N/A')}", className="info-text"),
+            html.P(f"Drop Threshold: {config.get('drop_threshold', 'N/A')*100:.0f}%", className="info-text"),
+            html.P(f"Impute Strategy: {config.get('impute_strategy', 'N/A')}", className="info-text")
+        ], className="summary-card"))
     
     # Pipeline steps
     if 'pipeline_steps' in final:
         steps = final['pipeline_steps']
-        steps_list = [html.Li(step) for step in steps]
+        steps_list = [html.Li(step, className="step-item") for step in steps]
         summary_cards.append(html.Div([
-            html.H5("Pipeline Steps", style={'color': '#2c3e50'}),
-            html.Ul(steps_list, style={'paddingLeft': '20px'})
-        ], style={
-            'backgroundColor': 'white',
-            'padding': '20px',
-            'borderRadius': '5px',
-            'boxShadow': '0 2px 4px rgba(0,0,0,0.1)'
-        }))
+            html.H5("Pipeline Steps", className="card-title"),
+            html.Ul(steps_list, className="steps-list")
+        ], className="summary-card"))
     
-    return html.Div(summary_cards)
+    return html.Div(summary_cards, className="summary-container")
 
 # Add callback for value counts chart
 @app.callback(
@@ -1472,6 +1328,224 @@ def update_value_counts_chart(cat_col, data_json):
             showarrow=False
         )
         return fig
+
+# Enhanced Dashboard Callbacks
+@app.callback(
+    [Output('enhanced-visualization', 'figure'),
+     Output('enhanced-statistics', 'children')],
+    [Input('enhanced-col-selector', 'value'),
+     Input('enhanced-vis-type', 'value')],
+    [State('stored-cleaned-data', 'data')]
+)
+def update_enhanced_visualization(column, vis_type, data_json):
+    """Update enhanced dashboard visualization"""
+    from enhanced_dashboard import create_column_visualization, create_column_statistics
+    
+    if not data_json or not column:
+        return go.Figure(), ""
+    
+    df = pd.read_json(io.StringIO(data_json), orient='split')
+    
+    if column not in df.columns:
+        return go.Figure(), html.P("Selected column not found in dataset", 
+                                  className="error-text")
+    
+    # Create visualization
+    fig = create_column_visualization(df, column, vis_type)
+    
+    # Create statistics
+    stats = create_column_statistics(df, column)
+    
+    return fig, stats
+
+@app.callback(
+    Output('enhanced-csv-download', 'data'),
+    [Input('enhanced-download-csv', 'n_clicks')],
+    [State('stored-cleaned-data', 'data')]
+)
+def download_enhanced_csv(n_clicks, data_json):
+    """Download CSV from enhanced dashboard"""
+    if n_clicks is None or data_json is None:
+        return None
+    
+    df = pd.read_json(io.StringIO(data_json), orient='split')
+    
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    filename = f"enhanced_data_export_{timestamp}.csv"
+    
+    return dcc.send_data_frame(df.to_csv, filename, index=False)
+
+@app.callback(
+    Output('enhanced-report-download', 'data'),
+    [Input('enhanced-download-report', 'n_clicks')],
+    [State('stored-cleaned-data', 'data')]
+)
+def download_enhanced_report(n_clicks, data_json):
+    """Download comprehensive report from enhanced dashboard"""
+    from enhanced_dashboard import create_enhanced_data_summary
+    
+    if n_clicks is None or data_json is None:
+        return None
+    
+    df = pd.read_json(io.StringIO(data_json), orient='split')
+    
+    # Create comprehensive report
+    summary = create_enhanced_data_summary(df)
+    
+    # Convert report to text
+    report_text = f"""
+    ENHANCED DATA ANALYSIS REPORT
+    =============================
+    Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+    
+    BASIC INFORMATION
+    -----------------
+    Total Rows: {summary['basic_info']['total_rows']:,}
+    Total Columns: {summary['basic_info']['total_columns']:,}
+    Memory Usage: {summary['basic_info']['memory_usage_mb']:.2f} MB
+    
+    DATA TYPE DISTRIBUTION
+    ----------------------
+    Numerical Columns: {summary['data_types']['numerical']:,}
+    Categorical Columns: {summary['data_types']['categorical']:,}
+    Date/Time Columns: {summary['data_types']['datetime']:,}
+    Boolean Columns: {summary['data_types']['boolean']:,}
+    
+    MISSING VALUES ANALYSIS
+    -----------------------
+    Total Null Values: {summary['missing_values']['total_nulls']:,}
+    Columns with Nulls: {summary['missing_values']['columns_with_nulls']:,}
+    Overall Null Percentage: {summary['missing_values']['null_percentage']:.2f}%
+    
+    COLUMN SAMPLES (First 10 columns)
+    --------------------------------
+    """
+    
+    for col, sample in summary['column_samples'].items():
+        report_text += f"{col}: {sample}\n"
+    
+    # Add column list
+    report_text += f"\nALL COLUMNS ({len(df.columns)} total):\n"
+    report_text += "-" * 40 + "\n"
+    for i, col in enumerate(df.columns, 1):
+        report_text += f"{i:3}. {col}\n"
+    
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    filename = f"enhanced_report_{timestamp}.txt"
+    
+    return dict(content=report_text, filename=filename)
+
+# Store enhanced summary data
+@app.callback(
+    Output('stored-enhanced-summary', 'data'),
+    [Input('stored-cleaned-data', 'data')]
+)
+def update_enhanced_summary(data_json):
+    """Store enhanced summary data"""
+    if data_json is None:
+        return None
+    
+    from enhanced_dashboard import create_enhanced_data_summary
+    df = pd.read_json(io.StringIO(data_json), orient='split')
+    summary = create_enhanced_data_summary(df)
+    
+    return summary
+
+# ===== NEW CALLBACKS FOR PROCESSING OPTIONS =====
+
+# Update outlier factor display
+@app.callback(
+    Output('outlier-factor-value', 'children'),
+    Input('outlier-factor', 'value')
+)
+def update_outlier_display(value):
+    return f"{value}"
+
+# Update drop threshold display
+@app.callback(
+    Output('drop-threshold-value', 'children'),
+    Input('drop-threshold', 'value')
+)
+def update_threshold_display(value):
+    return f"{value}%"
+
+# Update preview rows display
+@app.callback(
+    Output('preview-rows-value', 'children'),
+    Input('preview-rows', 'value')
+)
+def update_preview_display(value):
+    return f"{value}"
+
+# Preset button callbacks
+@app.callback(
+    [Output('outlier-factor', 'value'),
+     Output('drop-threshold', 'value'),
+     Output('impute-strategy', 'value'),
+     Output('preview-rows', 'value'),
+     Output('preset-balanced', 'className'),
+     Output('preset-aggressive', 'className'),
+     Output('preset-conservative', 'className'),
+     Output('preset-custom', 'className')],
+    [Input('preset-balanced', 'n_clicks'),
+     Input('preset-aggressive', 'n_clicks'),
+     Input('preset-conservative', 'n_clicks'),
+     Input('reset-options', 'n_clicks')],
+    [State('outlier-factor', 'value'),
+     State('drop-threshold', 'value'),
+     State('impute-strategy', 'value'),
+     State('preview-rows', 'value')]
+)
+def apply_presets(balanced_clicks, aggressive_clicks, conservative_clicks, reset_clicks, 
+                  current_outlier, current_threshold, current_strategy, current_preview):
+    ctx = dash.callback_context
+    
+    if not ctx.triggered:
+        return dash.no_update
+    
+    button_id = ctx.triggered[0]['prop_id'].split('.')[0]
+    
+    # Reset to defaults
+    if button_id == 'reset-options':
+        return OUTLIER_FACTOR, DROP_THRESHOLD * 100, IMPUTE_STRATEGY, PREVIEW_ROWS, "preset-button", "preset-button", "preset-button", "preset-button active"
+    
+    # Balanced preset (default)
+    if button_id == 'preset-balanced':
+        return 1.5, 50, 'median', 10, "preset-button active", "preset-button", "preset-button", "preset-button"
+    
+    # Aggressive preset (more cleaning)
+    elif button_id == 'preset-aggressive':
+        return 2.0, 30, 'most_frequent', 5, "preset-button", "preset-button active", "preset-button", "preset-button"
+    
+    # Conservative preset (less cleaning)
+    elif button_id == 'preset-conservative':
+        return 1.2, 70, 'mean', 20, "preset-button", "preset-button", "preset-button active", "preset-button"
+    
+    # If custom values are changed, mark as custom
+    return dash.no_update
+
+# Detect custom changes and update preset button state
+@app.callback(
+    [Output('preset-balanced', 'className', allow_duplicate=True),
+     Output('preset-aggressive', 'className', allow_duplicate=True),
+     Output('preset-conservative', 'className', allow_duplicate=True),
+     Output('preset-custom', 'className', allow_duplicate=True)],
+    [Input('outlier-factor', 'value'),
+     Input('drop-threshold', 'value'),
+     Input('impute-strategy', 'value'),
+     Input('preview-rows', 'value')],
+    prevent_initial_call=True
+)
+def detect_custom_changes(outlier_value, threshold_value, strategy_value, preview_value):
+    # Check if current values match any preset
+    if (outlier_value == 1.5 and threshold_value == 50 and strategy_value == 'median' and preview_value == 10):
+        return "preset-button active", "preset-button", "preset-button", "preset-button"
+    elif (outlier_value == 2.0 and threshold_value == 30 and strategy_value == 'most_frequent' and preview_value == 5):
+        return "preset-button", "preset-button active", "preset-button", "preset-button"
+    elif (outlier_value == 1.2 and threshold_value == 70 and strategy_value == 'mean' and preview_value == 20):
+        return "preset-button", "preset-button", "preset-button active", "preset-button"
+    else:
+        return "preset-button", "preset-button", "preset-button", "preset-button active"
 
 debug_mode = os.environ.get('DEBUG', 'False').lower() == 'true'
 if __name__ == '__main__':

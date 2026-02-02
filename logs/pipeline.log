@@ -1,0 +1,8 @@
+2026-02-02 16:48:06,740 - __main__ - INFO - Starting Data Analysis Pipeline
+2026-02-02 16:49:17,135 - __main__ - INFO - Loading data from data\fordgobike.csv
+2026-02-02 16:49:17,143 - __main__ - INFO - Data loaded successfully: (1000, 10)
+2026-02-02 16:50:30,467 - __main__ - INFO - Starting full pipeline execution
+2026-02-02 16:50:30,541 - __main__ - INFO - Pipeline execution completed
+2026-02-02 16:51:03,238 - __main__ - INFO - Data exported successfully
+2026-02-03 00:07:58,984 - __main__ - INFO - Starting Data Analysis Pipeline
+2026-02-03 00:25:41,644 - __main__ - INFO - Starting Data Analysis Pipeline
