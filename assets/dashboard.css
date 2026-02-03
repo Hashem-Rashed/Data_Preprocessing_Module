@@ -779,14 +779,6 @@ body {
         rgba(255, 179, 0, 0.1));
 }
 
-/* ===== DO NOT OVERRIDE PLOTLY/GRAPH TEXT ===== */
-/* Let Plotly and Dash graphs use their default colors */
-.js-plotly-plot,
-.plotly,
-.modebar,
-.dash-graph {
-    /* Don't override - let them use defaults */
-}
 
 /* ===== DASH TABLES - SPECIFIC OVERRIDES ===== */
 /* Only target tables in our app containers */

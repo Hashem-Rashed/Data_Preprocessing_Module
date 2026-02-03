@@ -1,22 +1,25 @@
 DATA PIPELINE QUALITY REPORT
 ==================================================
-Generated: 2026-02-02 16:51:03
+Generated: 2026-02-03 13:43:57
 ==================================================
 
 
 FINAL REPORT
 ----------------------------------------
 {
-  "timestamp": "2026-02-02T16:50:30.496792",
+  "timestamp": "2026-02-03T13:27:30.117569",
   "original_shape": [
-    1000,
-    10
+    183416,
+    16
   ],
   "cleaned_shape": [
-    1000,
-    10
+    183416,
+    14
   ],
-  "columns_removed": [],
+  "columns_removed": [
+    "start_time",
+    "end_time"
+  ],
   "pipeline_steps": [
     "data_type_handler",
     "null_handler",
@@ -34,79 +37,110 @@ SCHEMA REPORT
 ----------------------------------------
 {
   "original_dtypes": {
-    "customer_id": "float64",
-    "age": "float64",
-    "salary": "float32",
-    "purchase_amount": "float32",
-    "city": "category",
-    "membership_date": "datetime64[ns]",
-    "is_premium": "category",
-    "rating": "category",
-    "score": "float32",
-    "visits": "float64"
+    "duration_sec": "int64",
+    "start_time": "object",
+    "end_time": "object",
+    "start_station_id": "float64",
+    "start_station_name": "object",
+    "start_station_latitude": "float64",
+    "start_station_longitude": "float64",
+    "end_station_id": "float64",
+    "end_station_name": "object",
+    "end_station_latitude": "float64",
+    "end_station_longitude": "float64",
+    "bike_id": "int64",
+    "user_type": "object",
+    "member_birth_year": "float64",
+    "member_gender": "object",
+    "bike_share_for_all_trip": "object"
   },
   "proposed_dtypes": {
     "numerical": [
-      "customer_id",
-      "age",
-      "salary",
-      "purchase_amount",
-      "score",
-      "visits"
+      "duration_sec",
+      "start_station_id",
+      "start_station_latitude",
+      "start_station_longitude",
+      "end_station_id",
+      "end_station_latitude",
+      "end_station_longitude",
+      "bike_id",
+      "member_birth_year"
     ],
     "categorical": [
-      "city",
-      "is_premium",
-      "rating"
+      "start_station_name",
+      "end_station_name",
+      "user_type",
+      "member_gender",
+      "bike_share_for_all_trip"
     ],
     "date": [
-      "membership_date"
+      "start_time",
+      "end_time"
     ]
   },
-  "memory_usage_before": 0.04564666748046875,
-  "memory_usage_after": 0.031341552734375,
-  "memory_savings": 0.01430511474609375
+  "memory_usage_before": 87.02242946624756,
+  "memory_usage_after": 13.880949974060059,
+  "memory_savings": 73.1414794921875
 }
 
 
 MISSING VALUES REPORT
 ----------------------------------------
 {
-  "total_rows": 1000,
-  "total_columns": 10,
-  "total_nulls": "0",
+  "total_rows": 183416,
+  "total_columns": 16,
+  "total_nulls": "17318",
   "columns_to_drop": [],
-  "imputation_values": {},
+  "imputation_values": {
+    "start_station_id": "104.0",
+    "start_station_name": "Market St at 10th St",
+    "end_station_id": "100.0",
+    "end_station_name": "San Francisco Caltrain Station 2  (Townsend St at 4th St)",
+    "member_birth_year": "1987.0",
+    "member_gender": "Male"
+  },
   "null_summary": {
     "counts": {
-      "customer_id": 0,
-      "age": 0,
-      "salary": 0,
-      "purchase_amount": 0,
-      "city": 0,
-      "membership_date": 0,
-      "is_premium": 0,
-      "rating": 0,
-      "score": 0,
-      "visits": 0
+      "duration_sec": 0,
+      "start_time": 0,
+      "end_time": 0,
+      "start_station_id": 197,
+      "start_station_name": 197,
+      "start_station_latitude": 0,
+      "start_station_longitude": 0,
+      "end_station_id": 197,
+      "end_station_name": 197,
+      "end_station_latitude": 0,
+      "end_station_longitude": 0,
+      "bike_id": 0,
+      "user_type": 0,
+      "member_birth_year": 8265,
+      "member_gender": 8265,
+      "bike_share_for_all_trip": 0
     },
     "percentages": {
-      "customer_id": 0.0,
-      "age": 0.0,
-      "salary": 0.0,
-      "purchase_amount": 0.0,
-      "city": 0.0,
-      "membership_date": 0.0,
-      "is_premium": 0.0,
-      "rating": 0.0,
-      "score": 0.0,
-      "visits": 0.0
+      "duration_sec": 0.0,
+      "start_time": 0.0,
+      "end_time": 0.0,
+      "start_station_id": 0.11,
+      "start_station_name": 0.11,
+      "start_station_latitude": 0.0,
+      "start_station_longitude": 0.0,
+      "end_station_id": 0.11,
+      "end_station_name": 0.11,
+      "end_station_latitude": 0.0,
+      "end_station_longitude": 0.0,
+      "bike_id": 0.0,
+      "user_type": 0.0,
+      "member_birth_year": 4.51,
+      "member_gender": 4.51,
+      "bike_share_for_all_trip": 0.0
     }
   },
-  "columns_with_nulls": 0,
+  "columns_with_nulls": 6,
   "null_distribution": {
     "0%": 10,
-    "1-10%": 0,
+    "1-10%": 6,
     "10-50%": 0,
     ">50%": 0
   }
@@ -116,20 +150,50 @@ MISSING VALUES REPORT
 OUTLIERS REPORT
 ----------------------------------------
 {
-  "customer_id": {
+  "duration_sec": {
     "bounds": {
-      "lower": -450.0,
-      "upper": 1448.0
+      "lower": -381.5,
+      "upper": 1502.5
     },
     "original_range": {
-      "min": 1.0,
-      "max": 1000.0
+      "min": 61.0,
+      "max": 85444.0
     },
     "quartiles": {
-      "q1": 261.75,
-      "q3": 736.25
+      "q1": 325.0,
+      "q3": 796.0
     },
-    "iqr": 474.5,
+    "iqr": 471.0,
+    "method": "iqr",
+    "outliers": {
+      "count": 10131,
+      "percentage": 5.52,
+      "min": 1503.0,
+      "max": 85444.0,
+      "mean": 3673.5985588786893,
+      "std": 6891.424363982779
+    },
+    "non_outlier_stats": {
+      "count": "173285",
+      "min": 61.0,
+      "max": 1502.0,
+      "mean": 553.7417260582278
+    }
+  },
+  "start_station_id": {
+    "bounds": {
+      "lower": -241.0,
+      "upper": 527.0
+    },
+    "original_range": {
+      "min": 3.0,
+      "max": 398.0
+    },
+    "quartiles": {
+      "q1": 47.0,
+      "q3": 239.0
+    },
+    "iqr": 192.0,
     "method": "iqr",
     "outliers": {
       "count": 0,
@@ -140,166 +204,226 @@ OUTLIERS REPORT
       "std": null
     },
     "non_outlier_stats": {
-      "count": "1000",
-      "min": 1.0,
-      "max": 1000.0,
-      "mean": 499.954
+      "count": "183219",
+      "min": 3.0,
+      "max": 398.0,
+      "mean": 138.5903645364291
     }
   },
-  "age": {
+  "start_station_latitude": {
     "bounds": {
-      "lower": 11.0,
-      "upper": 59.0
+      "lower": 37.72928775,
+      "upper": 37.83807535
+    },
+    "original_range": {
+      "min": 37.3172979,
+      "max": 37.88022245
+    },
+    "quartiles": {
+      "q1": 37.7700831,
+      "q3": 37.79728
+    },
+    "iqr": 0.027196899999999857,
+    "method": "iqr",
+    "outliers": {
+      "count": 31136,
+      "percentage": 16.98,
+      "min": 37.3172979,
+      "max": 37.88022245,
+      "mean": 37.722673791447846,
+      "std": 0.23268354955710824
+    },
+    "non_outlier_stats": {
+      "count": "152280",
+      "min": 37.73016751,
+      "max": 37.8368013,
+      "mean": 37.78114733574152
+    }
+  },
+  "start_station_longitude": {
+    "bounds": {
+      "lower": -122.60122035,
+      "upper": -122.09772075000001
+    },
+    "original_range": {
+      "min": -122.4537045,
+      "max": -121.8741186
+    },
+    "quartiles": {
+      "q1": -122.412408,
+      "q3": -122.2865331
+    },
+    "iqr": 0.12587489999999946,
+    "method": "iqr",
+    "outliers": {
+      "count": 8271,
+      "percentage": 4.51,
+      "min": -121.98,
+      "max": -121.8741186,
+      "mean": -121.89083127526297,
+      "std": 0.013037714823342197
+    },
+    "non_outlier_stats": {
+      "count": "175145",
+      "min": -122.4537045,
+      "max": -122.2130372,
+      "mean": -122.37447081596449
+    }
+  },
+  "end_station_id": {
+    "bounds": {
+      "lower": -242.5,
+      "upper": 521.5
+    },
+    "original_range": {
+      "min": 3.0,
+      "max": 398.0
+    },
+    "quartiles": {
+      "q1": 44.0,
+      "q3": 235.0
+    },
+    "iqr": 191.0,
+    "method": "iqr",
+    "outliers": {
+      "count": 0,
+      "percentage": 0.0,
+      "min": null,
+      "max": null,
+      "mean": null,
+      "std": null
+    },
+    "non_outlier_stats": {
+      "count": "183219",
+      "min": 3.0,
+      "max": 398.0,
+      "mean": 136.249400990072
+    }
+  },
+  "end_station_latitude": {
+    "bounds": {
+      "lower": 37.730039250000004,
+      "upper": 37.83768764999999
+    },
+    "original_range": {
+      "min": 37.3172979,
+      "max": 37.88022245
+    },
+    "quartiles": {
+      "q1": 37.7704074,
+      "q3": 37.7973195
+    },
+    "iqr": 0.026912099999996997,
+    "method": "iqr",
+    "outliers": {
+      "count": 30905,
+      "percentage": 16.85,
+      "min": 37.3172979,
+      "max": 37.88022245,
+      "mean": 37.721359898872024,
+      "std": 0.2330209144065966
+    },
+    "non_outlier_stats": {
+      "count": "152511",
+      "min": 37.73016751,
+      "max": 37.8368013,
+      "mean": 37.78156985884212
+    }
+  },
+  "end_station_longitude": {
+    "bounds": {
+      "lower": -122.59724684999999,
+      "upper": -122.10252405000001
+    },
+    "original_range": {
+      "min": -122.4537045,
+      "max": -121.8741186
+    },
+    "quartiles": {
+      "q1": -122.4117258,
+      "q3": -122.2880451
+    },
+    "iqr": 0.1236806999999942,
+    "method": "iqr",
+    "outliers": {
+      "count": 8272,
+      "percentage": 4.51,
+      "min": -121.98,
+      "max": -121.8741186,
+      "mean": -121.89074179059477,
+      "std": 0.012935337596963983
+    },
+    "non_outlier_stats": {
+      "count": "175144",
+      "min": -122.4537045,
+      "max": -122.2130372,
+      "mean": -122.37404388726934
+    }
+  },
+  "bike_id": {
+    "bounds": {
+      "lower": 1189.5,
+      "upper": 8089.5
     },
     "original_range": {
       "min": 11.0,
-      "max": 59.0
+      "max": 6645.0
     },
     "quartiles": {
-      "q1": 29.0,
-      "q3": 41.0
+      "q1": 3777.0,
+      "q3": 5502.0
+    },
+    "iqr": 1725.0,
+    "method": "iqr",
+    "outliers": {
+      "count": 13255,
+      "percentage": 7.23,
+      "min": 11.0,
+      "max": 1188.0,
+      "mean": 592.7082610335723,
+      "std": 348.67985297495545
+    },
+    "non_outlier_stats": {
+      "count": "170161",
+      "min": 1191.0,
+      "max": 6645.0,
+      "mean": 4775.144081193693
+    }
+  },
+  "member_birth_year": {
+    "bounds": {
+      "lower": 1962.0,
+      "upper": 2010.0
+    },
+    "original_range": {
+      "min": 1878.0,
+      "max": 2001.0
+    },
+    "quartiles": {
+      "q1": 1980.0,
+      "q3": 1992.0
     },
     "iqr": 12.0,
     "method": "iqr",
     "outliers": {
-      "count": 0,
-      "percentage": 0.0,
-      "min": null,
-      "max": null,
-      "mean": null,
-      "std": null
+      "count": 5782,
+      "percentage": 3.3,
+      "min": 1878.0,
+      "max": 1961.0,
+      "mean": 1955.2097890003458,
+      "std": 8.342173404348125
     },
     "non_outlier_stats": {
-      "count": "1000",
-      "min": 11.0,
-      "max": 59.0,
-      "mean": 34.691
-    }
-  },
-  "salary": {
-    "bounds": {
-      "lower": 13163.671875,
-      "upper": 89519.296875
-    },
-    "original_range": {
-      "min": 13163.671875,
-      "max": 89519.296875
-    },
-    "quartiles": {
-      "q1": 41797.03125,
-      "q3": 60885.9375
-    },
-    "iqr": 19088.90625,
-    "method": "iqr",
-    "outliers": {
-      "count": 0,
-      "percentage": 0.0,
-      "min": null,
-      "max": null,
-      "mean": null,
-      "std": null
-    },
-    "non_outlier_stats": {
-      "count": "1000",
-      "min": 13163.671875,
-      "max": 89519.296875,
-      "mean": 51893.734375
-    }
-  },
-  "purchase_amount": {
-    "bounds": {
-      "lower": -131.83486938476562,
-      "upper": 299.86376953125
-    },
-    "original_range": {
-      "min": 0.0011634823167696595,
-      "max": 299.86376953125
-    },
-    "quartiles": {
-      "q1": 30.0521183013916,
-      "q3": 137.97677612304688
-    },
-    "iqr": 107.9246597290039,
-    "method": "iqr",
-    "outliers": {
-      "count": 0,
-      "percentage": 0.0,
-      "min": null,
-      "max": null,
-      "mean": null,
-      "std": null
-    },
-    "non_outlier_stats": {
-      "count": "1000",
-      "min": 0.0011634823167696595,
-      "max": 299.86376953125,
-      "mean": 96.14982604980469
-    }
-  },
-  "score": {
-    "bounds": {
-      "lower": -48.451759338378906,
-      "upper": 147.81594848632812
-    },
-    "original_range": {
-      "min": 0.3918375074863434,
-      "max": 99.9460678100586
-    },
-    "quartiles": {
-      "q1": 25.14862823486328,
-      "q3": 74.2155532836914
-    },
-    "iqr": 49.066925048828125,
-    "method": "iqr",
-    "outliers": {
-      "count": 0,
-      "percentage": 0.0,
-      "min": null,
-      "max": null,
-      "mean": null,
-      "std": null
-    },
-    "non_outlier_stats": {
-      "count": "1000",
-      "min": 0.3918375074863434,
-      "max": 99.9460678100586,
-      "mean": 50.10838317871094
-    }
-  },
-  "visits": {
-    "bounds": {
-      "lower": 0.375,
-      "upper": 9.375
-    },
-    "original_range": {
-      "min": 0.375,
-      "max": 9.375
-    },
-    "quartiles": {
-      "q1": 3.75,
-      "q3": 6.0
-    },
-    "iqr": 2.25,
-    "method": "iqr",
-    "outliers": {
-      "count": 0,
-      "percentage": 0.0,
-      "min": null,
-      "max": null,
-      "mean": null,
-      "std": null
-    },
-    "non_outlier_stats": {
-      "count": "1000",
-      "min": 0.375,
-      "max": 9.375,
-      "mean": 4.912375
+      "count": "169369",
+      "min": 1962.0,
+      "max": 2001.0,
+      "mean": 1985.8168909304536
     }
   },
   "_summary": {
-    "total_outliers": 0,
-    "columns_with_outliers": 0,
-    "total_columns_analyzed": 6,
+    "total_outliers": 107752,
+    "columns_with_outliers": 7,
+    "total_columns_analyzed": 9,
     "outlier_factor": 1.5,
     "clip_method": "iqr"
   }
