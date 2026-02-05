@@ -255,7 +255,6 @@ Enas Essam Mohamed
 
 Ahmed Magdy Morad
 
-Hossam Ashraf Saed
 
 🎓 Academic Value
 
