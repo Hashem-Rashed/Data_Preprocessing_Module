@@ -18,3 +18,8 @@
 2026-02-03 13:27:01,790 - main - INFO - Starting full pipeline execution
 2026-02-03 13:28:02,451 - main - INFO - Pipeline execution completed
 2026-02-03 13:43:57,325 - main - INFO - Data exported successfully
+2026-02-04 18:24:59,281 - main - INFO - Starting Data Analysis Pipeline
+2026-02-04 18:27:46,217 - main - INFO - Loading data from D:\Data_Preprocessing\Data_Preprocessing_Module\data\fordgobike.csv
+2026-02-04 18:27:46,558 - main - INFO - Data loaded successfully: (183416, 16)
+2026-02-04 18:28:29,595 - main - INFO - Starting full pipeline execution
+2026-02-04 18:28:49,939 - main - INFO - Pipeline execution completed
