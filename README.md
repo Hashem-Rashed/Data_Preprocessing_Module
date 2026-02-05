@@ -121,7 +121,7 @@ python app.py
 Open in browser:
 👉 http://localhost:8050
 
-👥 Team Members
+## 👥 Team Members
 
 - Hashem Abdelrahman Abdelkhalek – Team Leader
 
@@ -135,7 +135,7 @@ Open in browser:
 
 🎓 Academic Value
 
-This project demonstrates:
+## This project demonstrates:
 
 - Practical data preprocessing techniques
 
